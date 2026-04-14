@@ -9,6 +9,8 @@ const router = createRouter({
     { path: '/submissions', component: () => import('@/views/SubmissionsView.vue') },
     { path: '/contests', component: () => import('@/views/ContestsView.vue') },
     { path: '/admin', component: () => import('@/views/AdminView.vue') },
+    { path: '/login', component: () => import('@/views/LoginView.vue') },
+    { path: '/register', component: () => import('@/views/RegisterView.vue') },
   ],
 })
 

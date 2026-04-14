@@ -34,8 +34,8 @@ const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="user-actions">
-          <button class="text-btn">登录</button>
-          <button class="text-btn">注册</button>
+          <RouterLink to="/login" class="text-btn">登录</RouterLink>
+          <RouterLink to="/register" class="text-btn primary">注册</RouterLink>
         </div>
       </header>
 
@@ -49,13 +49,14 @@ const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item
 <style scoped>
 .shell {
   display: grid;
-  grid-template-columns: 76px 1fr;
+  grid-template-columns: 82px 1fr;
   min-height: 100vh;
-  background: #eef3f8;
+  background: radial-gradient(circle at top, #f2f8ff, #edf2f8 35%, #e8eef5 100%);
 }
 
 .sidebar {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
   border-right: 1px solid #e5eaf0;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -65,37 +66,42 @@ const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item
 }
 
 .brand {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(130deg, #5ea7ff 0%, #53dc9a 100%);
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #5ea7ff 0%, #57d5a2 100%);
   color: #fff;
   display: grid;
   place-items: center;
   font-weight: 700;
+  box-shadow: 0 10px 30px rgba(62, 149, 255, 0.3);
 }
 
 .sidebar nav {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
 }
 
 .menu-link {
-  width: 54px;
-  border-radius: 12px;
-  padding: 8px 4px;
+  width: 58px;
+  border-radius: 14px;
+  padding: 10px 4px;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   justify-items: center;
   color: #637080;
   text-decoration: none;
   font-size: 12px;
+  transition: all 0.2s ease;
 }
 
 .menu-link:hover,
 .menu-link.router-link-active {
-  background: #edf5ff;
-  color: #2b84e8;
+  background: #ebf4ff;
+  color: #277dde;
+  transform: translateY(-1px);
 }
 
 .icon {
@@ -109,9 +115,10 @@ const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item
 }
 
 .topbar {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid #e5eaf0;
-  padding: 14px 26px;
+  padding: 14px 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -126,21 +133,34 @@ const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item
 h1 {
   margin: 4px 0 0;
   font-size: 24px;
-  color: #273142;
+  color: #1e2a3a;
 }
 
 .user-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .text-btn {
-  border: 0;
+  border: 1px solid #deebfa;
   background: #f5f8fd;
   color: #526172;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
   cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.text-btn:hover {
+  border-color: #c2dcfb;
+  color: #2f83e4;
+}
+
+.text-btn.primary {
+  color: #fff;
+  background: linear-gradient(135deg, #3798f4, #2a7de7);
+  border-color: transparent;
 }
 
 .content {

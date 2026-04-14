@@ -6,9 +6,9 @@ spring:
     name: backend
 
   datasource:
-    url: jdbc:mysql://localhost:3306/oj_platform?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
-    username: root
-    password: ???????
+    url: jdbc:mysql://139.9.114.118:3306/oj_platform?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: liuyi1
+    password: Hhh123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

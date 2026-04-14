@@ -1,0 +1,63 @@
+# =========================
+# IntelliJ / IDE
+# =========================
+.idea/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Backend
+# =========================
+backend/target/
+
+# =========================
+# Frontend / Node / Vite
+# =========================
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+*.tsbuildinfo
+.eslintcache
+*.timestamp-*-*.mjs
+
+# =========================
+# Testing
+# =========================
+cypress/videos/
+cypress/screenshots/
+__screenshots__/
+
+# =========================
+# Env / Temp
+# =========================
+.env
+.env.*
+tmp/
+temp/

@@ -1,9 +1,18 @@
 package com.oj.controller;
 
 import com.oj.dto.ApiResponse;
+import com.oj.entity.Contest;
+import com.oj.entity.ContestProblem;
+import com.oj.entity.OjUser;
 import com.oj.entity.Problem;
+import com.oj.repository.ContestParticipantRepository;
+import com.oj.repository.ContestProblemRepository;
+import com.oj.repository.ContestRepository;
+import com.oj.repository.OjUserRepository;
 import com.oj.repository.ProblemRepository;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -20,30 +29,59 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProblemController {
 
     private final ProblemRepository problemRepository;
+    private final OjUserRepository userRepository;
+    private final ContestRepository contestRepository;
+    private final ContestProblemRepository contestProblemRepository;
+    private final ContestParticipantRepository contestParticipantRepository;
     private static final Set<String> SUPPORTED_DIFFICULTY = Set.of("入门", "普及", "提高");
 
-    public ProblemController(ProblemRepository problemRepository) {
+    public ProblemController(
+            ProblemRepository problemRepository,
+            OjUserRepository userRepository,
+            ContestRepository contestRepository,
+            ContestProblemRepository contestProblemRepository,
+            ContestParticipantRepository contestParticipantRepository
+    ) {
         this.problemRepository = problemRepository;
+        this.userRepository = userRepository;
+        this.contestRepository = contestRepository;
+        this.contestProblemRepository = contestProblemRepository;
+        this.contestParticipantRepository = contestParticipantRepository;
     }
 
     @GetMapping
-    public ApiResponse<List<Problem>> list(@RequestParam(required = false) String keyword) {
+    public ApiResponse<List<Problem>> list(@RequestParam(required = false) String keyword, @RequestParam(required = false) Long viewerUserId) {
+        OjUser viewer = Optional.ofNullable(viewerUserId).flatMap(userRepository::findById).orElse(null);
         List<Problem> problems = Optional.ofNullable(keyword)
                 .filter(value -> !value.isBlank())
                 .map(problemRepository::findByTitleContainingIgnoreCase)
-                .orElseGet(problemRepository::findAll);
+                .orElseGet(problemRepository::findAll)
+                .stream()
+                .filter(problem -> canViewProblem(problem, viewer, null))
+                .toList();
         return ApiResponse.ok(problems);
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Problem> detail(@PathVariable Long id) {
+    public ApiResponse<Problem> detail(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long viewerUserId,
+            @RequestParam(required = false) Long contestId
+    ) {
+        OjUser viewer = Optional.ofNullable(viewerUserId).flatMap(userRepository::findById).orElse(null);
         return problemRepository.findById(id)
+                .filter(problem -> canViewProblem(problem, viewer, contestId))
                 .map(ApiResponse::ok)
-                .orElseGet(() -> ApiResponse.fail("题目不存在"));
+                .orElseGet(() -> ApiResponse.fail("题目不存在或无查看权限"));
     }
 
     @PostMapping
     public ApiResponse<Problem> create(@RequestBody CreateProblemRequest request) {
+        OjUser creator = userRepository.findById(request.creatorUserId()).orElse(null);
+        if (creator == null || !OjUser.Role.ADMIN.name().equals(creator.getRole())) {
+            return ApiResponse.fail("仅管理员可创建题目");
+        }
+
         Problem problem = new Problem();
         problem.setTitle(request.title());
         problem.setDescription(request.description());
@@ -58,13 +96,51 @@ public class ProblemController {
         }
         problem.setDifficulty(difficulty);
 
+        problem.setPermissionType(Optional.ofNullable(request.permissionType()).orElse(Problem.PermissionType.PUBLIC));
+        problem.setTags(Optional.ofNullable(request.tags()).orElse(""));
         problem.setTimeLimitMs(Optional.ofNullable(request.timeLimitMs()).orElse(1000));
         problem.setMemoryLimitMb(Optional.ofNullable(request.memoryLimitMb()).orElse(256));
         problem.setTestcasePath(request.testcasePath());
         return ApiResponse.ok(problemRepository.save(problem));
     }
 
+    private boolean canViewProblem(Problem problem, OjUser viewer, Long contestId) {
+        if (viewer != null && (OjUser.Role.ADMIN.name().equals(viewer.getRole()) || OjUser.Role.TEACHER.name().equals(viewer.getRole()))) {
+            return true;
+        }
+
+        if (problem.getPermissionType() == Problem.PermissionType.PUBLIC) {
+            return true;
+        }
+        if (problem.getPermissionType() == Problem.PermissionType.LOGIN_REQUIRED) {
+            return viewer != null;
+        }
+        if (viewer == null) {
+            return false;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (contestId != null && isContestRunningAndAuthorized(contestId, problem.getId(), viewer.getId(), now)) {
+            return true;
+        }
+
+        return contestProblemRepository.findByIdProblemId(problem.getId()).stream().anyMatch(cp ->
+                isContestRunningAndAuthorized(cp.getId().getContestId(), problem.getId(), viewer.getId(), now));
+    }
+
+    private boolean isContestRunningAndAuthorized(Long contestId, Long problemId, Long viewerId, LocalDateTime now) {
+        if (contestProblemRepository.findByIdContestIdAndIdProblemId(contestId, problemId).isEmpty()) {
+            return false;
+        }
+        Contest contest = contestRepository.findById(contestId).orElse(null);
+        if (contest == null || now.isBefore(contest.getStartTime()) || now.isAfter(contest.getEndTime())) {
+            return false;
+        }
+        return contestParticipantRepository.existsByIdContestIdAndIdUserId(contestId, viewerId);
+    }
+
     public record CreateProblemRequest(
+            @NotNull Long creatorUserId,
             @NotBlank String title,
             @NotBlank String description,
             String inputFormat,
@@ -72,9 +148,10 @@ public class ProblemController {
             String sampleInput,
             String sampleOutput,
             String difficulty,
+            Problem.PermissionType permissionType,
+            String tags,
             Integer timeLimitMs,
             Integer memoryLimitMb,
             @NotBlank String testcasePath
-    ) {
-    }
+    ) {}
 }

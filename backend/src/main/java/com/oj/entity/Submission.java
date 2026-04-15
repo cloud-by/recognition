@@ -50,6 +50,9 @@ public class Submission {
     @Column(name = "submit_time", nullable = false)
     private LocalDateTime submitTime;
 
+    @Column(name = "submit_ip", length = 64)
+    private String submitIp;
+
     public Long getId() { return id; }
     public OjUser getUser() { return user; }
     public void setUser(OjUser user) { this.user = user; }
@@ -67,4 +70,6 @@ public class Submission {
     public void setMemoryKb(Integer memoryKb) { this.memoryKb = memoryKb; }
     public LocalDateTime getSubmitTime() { return submitTime; }
     public void setSubmitTime(LocalDateTime submitTime) { this.submitTime = submitTime; }
+    public String getSubmitIp() { return submitIp; }
+    public void setSubmitIp(String submitIp) { this.submitIp = submitIp; }
 }

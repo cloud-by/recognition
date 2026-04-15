@@ -2,6 +2,8 @@ package com.oj.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -13,6 +15,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "problem")
 public class Problem {
+
+    public enum PermissionType { PUBLIC, LOGIN_REQUIRED, CONTEST_ONLY }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,6 +42,13 @@ public class Problem {
 
     @Column(name = "difficulty", nullable = false, length = 20)
     private String difficulty = "普及";
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "permission_type", nullable = false, length = 30)
+    private PermissionType permissionType = PermissionType.PUBLIC;
+
+    @Column(name = "tags", length = 500)
+    private String tags;
 
     @Column(name = "time_limit_ms", nullable = false)
     private Integer timeLimitMs = 1000;
@@ -81,6 +92,10 @@ public class Problem {
     public void setSampleOutput(String sampleOutput) { this.sampleOutput = sampleOutput; }
     public String getDifficulty() { return difficulty; }
     public void setDifficulty(String difficulty) { this.difficulty = difficulty; }
+    public PermissionType getPermissionType() { return permissionType; }
+    public void setPermissionType(PermissionType permissionType) { this.permissionType = permissionType; }
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
     public Integer getTimeLimitMs() { return timeLimitMs; }
     public void setTimeLimitMs(Integer timeLimitMs) { this.timeLimitMs = timeLimitMs; }
     public Integer getMemoryLimitMb() { return memoryLimitMb; }

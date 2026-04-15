@@ -15,6 +15,7 @@ const form = reactive({
   startTime: '',
   endTime: '',
   contestType: 'ACM',
+  rankingPolicy: 'FORMAL',
   freezeBoard: false,
   problemIds: [],
 })
@@ -34,11 +35,12 @@ async function submitContest() {
   message.value = ''
   try {
     const resp = await createContest({
-      adminUserId: user?.id,
+      creatorUserId: user?.id,
       title: form.title,
       startTime: form.startTime,
       endTime: form.endTime,
       contestType: form.contestType,
+      rankingPolicy: form.rankingPolicy,
       freezeBoard: form.freezeBoard,
       problemIds: form.problemIds,
     })
@@ -53,6 +55,7 @@ async function submitContest() {
     form.startTime = ''
     form.endTime = ''
     form.contestType = 'ACM'
+    form.rankingPolicy = 'FORMAL'
     form.freezeBoard = false
     form.problemIds = []
     await loadBaseData()
@@ -74,7 +77,7 @@ onMounted(async () => {
 
 <template>
   <section class="panel">
-    <h2>比赛管理（管理员）</h2>
+    <h2>比赛管理（老师/管理员）</h2>
     <p>创建比赛时需填写比赛名称、时间，并从题库选择题目。</p>
 
     <form class="form" @submit.prevent="submitContest">
@@ -90,6 +93,13 @@ onMounted(async () => {
           <option value="OI">OI</option>
           <option value="IOI">IOI</option>
           <option value="PRACTICE">PRACTICE</option>
+        </select>
+      </label>
+      <label>
+        排名策略
+        <select v-model="form.rankingPolicy">
+          <option value="FORMAL">正式比赛（含罚时）</option>
+          <option value="CLASSROOM">课堂模式（不计罚时）</option>
         </select>
       </label>
       <label class="check"><input v-model="form.freezeBoard" type="checkbox" />启用封榜</label>

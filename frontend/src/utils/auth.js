@@ -26,3 +26,13 @@ export function isAdminUser() {
   const user = getAuthUser()
   return user?.role === 'ADMIN'
 }
+
+export function isTeacherUser() {
+  const user = getAuthUser()
+  return user?.role === 'TEACHER'
+}
+
+export function isManagerUser() {
+  const user = getAuthUser()
+  return user?.role === 'ADMIN' || user?.role === 'TEACHER'
+}

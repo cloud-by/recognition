@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiGet } from '@/api/http'
-import { isLoggedIn } from '@/utils/auth'
+import { getAuthUser, isLoggedIn } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,7 +28,9 @@ async function loadDetail() {
   loading.value = true
   error.value = ''
   try {
-    const resp = await apiGet(`/problems/${route.params.id}`)
+    const user = getAuthUser()
+    const q = user?.id ? `?viewerUserId=${user.id}` : ''
+    const resp = await apiGet(`/problems/${route.params.id}${q}`)
     problem.value = resp.data
     if (!problem.value) {
       error.value = resp.message || '题目不存在'
@@ -67,6 +69,7 @@ onMounted(() => {
           <p class="pid">{{ problemCode }}</p>
           <h2>{{ problem.title }}</h2>
           <p class="limits">时间限制 {{ problem.timeLimitMs }} ms · 内存限制 {{ problem.memoryLimitMb }} MB</p>
+          <p class="limits">权限 {{ problem.permissionType }} · 标签 {{ problem.tags || '-' }}</p>
         </div>
         <div class="actions">
           <span :class="['difficulty', difficultyClass(problem.difficulty)]">{{ problem.difficulty || '普及' }}</span>

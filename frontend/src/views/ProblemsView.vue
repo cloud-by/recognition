@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { getAuthUser } from '@/utils/auth'
 import { useRouter } from 'vue-router'
 import { apiGet } from '@/api/http'
 
@@ -39,7 +40,11 @@ async function loadProblems() {
   error.value = ''
   try {
     const keyword = filters.value.keyword.trim()
-    const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+    const user = getAuthUser()
+    const params = new URLSearchParams()
+    if (keyword) params.set('keyword', keyword)
+    if (user?.id) params.set('viewerUserId', user.id)
+    const query = params.toString() ? `?${params.toString()}` : ''
     const resp = await apiGet(`/problems${query}`)
     problems.value = resp.data || []
   } catch (err) {
@@ -106,12 +111,14 @@ onMounted(loadProblems)
           <th>等级</th>
           <th>时间限制</th>
           <th>内存限制</th>
+          <th>权限</th>
+          <th>标签</th>
           <th>操作</th>
         </tr>
         </thead>
         <tbody>
         <tr v-if="!filteredProblems.length">
-          <td colspan="6" class="empty">暂无匹配题目</td>
+          <td colspan="8" class="empty">暂无匹配题目</td>
         </tr>
         <tr v-for="p in filteredProblems" :key="p.id">
           <td>P{{ String(p.id).padStart(4, '0') }}</td>
@@ -123,6 +130,8 @@ onMounted(loadProblems)
           </td>
           <td>{{ p.timeLimitMs }} ms</td>
           <td>{{ p.memoryLimitMb }} MB</td>
+          <td>{{ p.permissionType }}</td>
+          <td>{{ p.tags || "-" }}</td>
           <td>
             <button class="link" @click="goDetail(p.id)">查看详情</button>
           </td>

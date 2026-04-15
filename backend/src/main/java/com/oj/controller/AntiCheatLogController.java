@@ -85,6 +85,24 @@ public class AntiCheatLogController {
         return ApiResponse.ok(logs);
     }
 
+    @GetMapping("/check-ip")
+    public ApiResponse<?> checkIp(@RequestParam Long userId, @RequestParam String ip) {
+        OjUser user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return ApiResponse.fail("用户不存在");
+        }
+        boolean inLab = ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("172.");
+        if (!inLab) {
+            AntiCheatLog log = new AntiCheatLog();
+            log.setUser(user);
+            log.setBehaviorType("OUTSIDE_LAB_IP");
+            log.setDetailInfo("登录IP不在机房网段: " + ip);
+            log.setOccurredTime(LocalDateTime.now());
+            antiCheatLogRepository.save(log);
+        }
+        return ApiResponse.ok(Map.of("inLab", inLab, "ip", ip));
+    }
+
     @PostMapping
     public ApiResponse<?> create(@RequestBody CreateLogRequest request) {
         Optional<OjUser> user = userRepository.findById(request.userId());

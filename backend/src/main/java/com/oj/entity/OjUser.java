@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 @Table(name = "oj_user")
 public class OjUser {
 
+    public enum Role { STUDENT, TEACHER, ADMIN }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,7 +30,10 @@ public class OjUser {
     private String nickname;
 
     @Column(nullable = false, length = 20)
-    private String role = "USER";
+    private String role = Role.STUDENT.name();
+
+    @Column(name = "last_submit_ip", length = 64)
+    private String lastSubmitIp;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -57,6 +62,8 @@ public class OjUser {
     public void setNickname(String nickname) { this.nickname = nickname; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getLastSubmitIp() { return lastSubmitIp; }
+    public void setLastSubmitIp(String lastSubmitIp) { this.lastSubmitIp = lastSubmitIp; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

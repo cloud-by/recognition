@@ -25,7 +25,8 @@ async function loadProblem() {
   loading.value = true
   error.value = ''
   try {
-    const resp = await apiGet(`/problems/${route.params.id}`)
+    const q = user.value?.id ? `?viewerUserId=${user.value.id}` : ''
+    const resp = await apiGet(`/problems/${route.params.id}${q}`)
     problem.value = resp.data
     if (!problem.value) {
       error.value = resp.message || '题目不存在'

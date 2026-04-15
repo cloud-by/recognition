@@ -10,6 +10,7 @@ const form = reactive({
   nickname: '',
   password: '',
   confirmPassword: '',
+  role: 'STUDENT',
 })
 
 const error = ref('')
@@ -29,6 +30,7 @@ async function onSubmit() {
       username: form.username,
       nickname: form.nickname,
       password: form.password,
+      role: form.role,
     })
     if (!resp.success || !resp.data?.id) {
       error.value = resp.message || '注册失败'
@@ -64,6 +66,13 @@ async function onSubmit() {
         <label>
           密码
           <input v-model="form.password" type="password" placeholder="请输入密码" required />
+        </label>
+        <label>
+          账号角色
+          <select v-model="form.role">
+            <option value="STUDENT">学生</option>
+            <option value="TEACHER">老师</option>
+          </select>
         </label>
         <label>
           确认密码
@@ -123,7 +132,8 @@ label {
   font-size: 13px;
 }
 
-input {
+input,
+select {
   border: 1px solid #d4deea;
   border-radius: 10px;
   padding: 10px 12px;

@@ -27,12 +27,27 @@ SET @role_col_exists := (
 
 SET @add_role_sql := IF(
     @role_col_exists = 0,
-    "ALTER TABLE oj_user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN' AFTER nickname",
+    "ALTER TABLE oj_user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'STUDENT' COMMENT '角色：STUDENT/TEACHER/ADMIN' AFTER nickname",
     'SELECT 1'
 );
 PREPARE stmt_add_role FROM @add_role_sql;
 EXECUTE stmt_add_role;
 DEALLOCATE PREPARE stmt_add_role;
+
+SET @last_submit_ip_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oj_user' AND COLUMN_NAME = 'last_submit_ip'
+);
+SET @add_last_submit_ip_sql := IF(
+    @last_submit_ip_exists = 0,
+    "ALTER TABLE oj_user ADD COLUMN last_submit_ip VARCHAR(64) NULL COMMENT '最近一次提交IP' AFTER role",
+    'SELECT 1'
+);
+PREPARE stmt_add_last_submit_ip FROM @add_last_submit_ip_sql;
+EXECUTE stmt_add_last_submit_ip;
+DEALLOCATE PREPARE stmt_add_last_submit_ip;
+
+UPDATE oj_user SET role = 'STUDENT' WHERE role IS NULL OR role NOT IN ('STUDENT','TEACHER','ADMIN');
 
 
 -- =========================
@@ -93,6 +108,32 @@ UPDATE problem
 SET difficulty = '普及'
 WHERE difficulty IS NULL OR difficulty NOT IN ('入门', '普及', '提高');
 
+SET @permission_type_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'problem' AND COLUMN_NAME = 'permission_type'
+);
+SET @add_permission_type_sql := IF(
+    @permission_type_exists = 0,
+    "ALTER TABLE problem ADD COLUMN permission_type ENUM('PUBLIC','LOGIN_REQUIRED','CONTEST_ONLY') NOT NULL DEFAULT 'PUBLIC' COMMENT '题目权限' AFTER difficulty",
+    'SELECT 1'
+);
+PREPARE stmt_add_permission_type FROM @add_permission_type_sql;
+EXECUTE stmt_add_permission_type;
+DEALLOCATE PREPARE stmt_add_permission_type;
+
+SET @tags_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'problem' AND COLUMN_NAME = 'tags'
+);
+SET @add_tags_sql := IF(
+    @tags_exists = 0,
+    "ALTER TABLE problem ADD COLUMN tags VARCHAR(500) NULL COMMENT '算法标签' AFTER permission_type",
+    'SELECT 1'
+);
+PREPARE stmt_add_tags FROM @add_tags_sql;
+EXECUTE stmt_add_tags;
+DEALLOCATE PREPARE stmt_add_tags;
+
 -- =========================
 -- 3. 提交记录表
 -- =========================
@@ -107,6 +148,7 @@ CREATE TABLE IF NOT EXISTS submission (
     runtime_ms INT UNSIGNED DEFAULT NULL COMMENT '运行耗时(ms)',
     memory_kb INT UNSIGNED DEFAULT NULL COMMENT '内存占用(KB)',
     submit_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
+    submit_ip VARCHAR(64) DEFAULT NULL COMMENT '提交IP',
 
     CONSTRAINT fk_submission_user
     FOREIGN KEY (user_id) REFERENCES oj_user(id)
@@ -132,12 +174,48 @@ CREATE TABLE IF NOT EXISTS contest (
     start_time DATETIME NOT NULL COMMENT '开始时间',
     end_time DATETIME NOT NULL COMMENT '结束时间',
     contest_type ENUM('ACM', 'OI', 'IOI', 'PRACTICE') NOT NULL DEFAULT 'ACM' COMMENT '比赛类型',
+    ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略',
     freeze_board TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否封榜：0否，1是',
+    created_by_user_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '创建者用户ID',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     KEY idx_contest_time (start_time, end_time)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='比赛表';
+
+SET @ranking_policy_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'contest'
+      AND COLUMN_NAME = 'ranking_policy'
+);
+
+SET @add_ranking_policy_sql := IF(
+    @ranking_policy_exists = 0,
+    "ALTER TABLE contest ADD COLUMN ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略' AFTER contest_type",
+    'SELECT 1'
+);
+PREPARE stmt_add_ranking_policy FROM @add_ranking_policy_sql;
+EXECUTE stmt_add_ranking_policy;
+DEALLOCATE PREPARE stmt_add_ranking_policy;
+
+SET @created_by_user_id_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'contest'
+      AND COLUMN_NAME = 'created_by_user_id'
+);
+
+SET @add_created_by_user_id_sql := IF(
+    @created_by_user_id_exists = 0,
+    "ALTER TABLE contest ADD COLUMN created_by_user_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '创建者用户ID' AFTER freeze_board",
+    'SELECT 1'
+);
+PREPARE stmt_add_created_by_user_id FROM @add_created_by_user_id_sql;
+EXECUTE stmt_add_created_by_user_id;
+DEALLOCATE PREPARE stmt_add_created_by_user_id;
 
 
 -- =========================
@@ -189,6 +267,18 @@ CREATE TABLE IF NOT EXISTS contest_problem (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='比赛题目关联表';
 
 
+
+CREATE TABLE IF NOT EXISTS teaching_class (
+                                              id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '班级ID',
+                                              teacher_id BIGINT UNSIGNED NOT NULL COMMENT '老师ID',
+                                              name VARCHAR(120) NOT NULL COMMENT '班级名称',
+    description VARCHAR(300) DEFAULT NULL COMMENT '班级说明',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    CONSTRAINT fk_teaching_class_teacher FOREIGN KEY (teacher_id) REFERENCES oj_user(id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+    KEY idx_teaching_class_teacher (teacher_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班级表';
+
 -- =========================
 -- 7. 比赛报名/参赛表
 -- =========================
@@ -218,6 +308,7 @@ USE oj_platform;
 -- 为了方便重复执行，这里先按外键依赖顺序清空测试数据
 DELETE FROM anti_cheat_log;
 DELETE FROM contest_participant;
+DELETE FROM teaching_class;
 DELETE FROM contest_problem;
 DELETE FROM submission;
 DELETE FROM contest;
@@ -227,6 +318,59 @@ DELETE FROM oj_user;
 -- =========================
 -- 1. 用户测试数据
 -- =========================
+INSERT INTO oj_user (
+    id, username, password_hash, nickname, role, last_submit_ip, created_at, updated_at
+) VALUES
+      (
+          1,
+          'admin',
+          '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi',
+          '系统管理员',
+          'ADMIN',
+          '10.10.1.1',
+          '2026-04-01 09:00:00',
+          '2026-04-01 09:00:00'
+      ),
+      (
+          2,
+          'teacher_zhang',
+          '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi',
+          '张老师',
+          'TEACHER',
+          '10.10.1.11',
+          '2026-04-01 09:05:00',
+          '2026-04-01 09:05:00'
+      ),
+      (
+          3,
+          'student_li',
+          '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi',
+          '李同学',
+          'STUDENT',
+          '10.10.1.21',
+          '2026-04-01 09:10:00',
+          '2026-04-01 09:10:00'
+      ),
+      (
+          4,
+          'student_wang',
+          '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi',
+          '王同学',
+          'STUDENT',
+          '10.10.1.22',
+          '2026-04-01 09:12:00',
+          '2026-04-01 09:12:00'
+      ),
+      (
+          5,
+          'student_chen',
+          '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi',
+          '陈同学',
+          'STUDENT',
+          '10.10.1.23',
+          '2026-04-01 09:14:00',
+          '2026-04-01 09:14:00'
+      );
 
 -- =========================
 -- 2. 题目测试数据
@@ -301,7 +445,7 @@ INSERT INTO problem (
 -- 3. 比赛测试数据
 -- =========================
 INSERT INTO contest (
-    id, title, start_time, end_time, contest_type, freeze_board, created_at, updated_at
+    id, title, start_time, end_time, contest_type, ranking_policy, freeze_board, created_by_user_id, created_at, updated_at
 ) VALUES
       (
           1,
@@ -309,7 +453,9 @@ INSERT INTO contest (
           '2026-04-20 19:00:00',
           '2026-04-20 21:00:00',
           'ACM',
+          'FORMAL',
           1,
+          2,
           '2026-04-05 12:00:00',
           '2026-04-05 12:00:00'
       ),
@@ -319,7 +465,9 @@ INSERT INTO contest (
           '2026-04-18 14:00:00',
           '2026-04-18 16:00:00',
           'PRACTICE',
+          'CLASSROOM',
           0,
+          2,
           '2026-04-05 12:30:00',
           '2026-04-05 12:30:00'
       );

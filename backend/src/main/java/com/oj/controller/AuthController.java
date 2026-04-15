@@ -30,7 +30,7 @@ public class AuthController {
         }
 
         OjUser user = new OjUser();
-        user.setUsername(request.username());
+        user.setUsername(request.username().trim());
         user.setNickname(request.nickname());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(normalizeRole(request.role()));
@@ -48,15 +48,16 @@ public class AuthController {
 
     private String normalizeRole(String role) {
         if (role == null || role.isBlank()) {
-            return "USER";
+            return OjUser.Role.STUDENT.name();
         }
-        return "ADMIN".equals(role.toUpperCase(Locale.ROOT)) ? "ADMIN" : "USER";
+        return switch (role.toUpperCase(Locale.ROOT)) {
+            case "ADMIN" -> OjUser.Role.ADMIN.name();
+            case "TEACHER" -> OjUser.Role.TEACHER.name();
+            default -> OjUser.Role.STUDENT.name();
+        };
     }
 
     public record RegisterRequest(@NotBlank String username, @NotBlank String password, @NotBlank String nickname, String role) { }
-    public record LoginRequest(@NotBlank String username, @NotBlank String password) {
-    }
-
-    public record LoginResponse(Long id, String username, String nickname, String role) {
-    }
+    public record LoginRequest(@NotBlank String username, @NotBlank String password) {}
+    public record LoginResponse(Long id, String username, String nickname, String role) {}
 }

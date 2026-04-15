@@ -12,11 +12,17 @@ const allMenus = [
   { name: '题目列表', path: '/problems', icon: '▤' },
   { name: '提交记录', path: '/submissions', icon: '↻' },
   { name: '比赛大厅', path: '/contests', icon: '🏁' },
-  { name: '比赛管理', path: '/contests/manage', icon: '🛠', adminOnly: true },
+  { name: '比赛管理', path: '/contests/manage', icon: '🛠', managerOnly: true },
+  { name: '班级管理', path: '/classes/manage', icon: '🏫', teacherOnly: true },
   { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
 ]
 
-const menus = computed(() => allMenus.filter((item) => !item.adminOnly || user.value?.role === 'ADMIN'))
+const menus = computed(() => allMenus.filter((item) => {
+  if (item.adminOnly) return user.value?.role === 'ADMIN'
+  if (item.teacherOnly) return user.value?.role === 'TEACHER'
+  if (item.managerOnly) return ['ADMIN', 'TEACHER'].includes(user.value?.role)
+  return true
+}))
 const pageTitle = computed(() => {
   const matched = [...allMenus]
     .sort((a, b) => b.path.length - a.path.length)
@@ -62,7 +68,7 @@ onUnmounted(() => {
         <div class="user-actions">
           <template v-if="user?.id">
             <span class="welcome">你好，{{ user.nickname || user.username }}</span>
-            <span v-if="user?.role === 'ADMIN'" class="role-badge">管理员</span>
+            <span v-if="user?.role" class="role-badge">{{ user.role === 'ADMIN' ? '管理员' : user.role === 'TEACHER' ? '老师' : '学生' }}</span>
             <button class="text-btn" @click="logout">退出</button>
           </template>
           <template v-else>

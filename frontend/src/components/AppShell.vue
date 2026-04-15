@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAuthUser, setAuthUser } from '@/utils/auth'
+import { getAuthChangeEventName, getAuthUser, setAuthUser } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,10 +43,12 @@ function logout() {
 onMounted(() => {
   refreshUser()
   window.addEventListener('storage', refreshUser)
+  window.addEventListener(getAuthChangeEventName(), refreshUser)
 })
 
 onUnmounted(() => {
   window.removeEventListener('storage', refreshUser)
+  window.removeEventListener(getAuthChangeEventName(), refreshUser)
 })
 </script>
 

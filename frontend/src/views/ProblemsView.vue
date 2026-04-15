@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { getAuthUser } from '@/utils/auth'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { getAuthChangeEventName, getAuthUser } from '@/utils/auth'
 import { useRouter } from 'vue-router'
 import { apiGet } from '@/api/http'
 
@@ -76,6 +76,14 @@ function difficultyClass(difficulty = '普及') {
 }
 
 onMounted(loadProblems)
+
+onMounted(() => {
+  window.addEventListener(getAuthChangeEventName(), loadProblems)
+})
+
+onUnmounted(() => {
+  window.removeEventListener(getAuthChangeEventName(), loadProblems)
+})
 </script>
 
 <template>

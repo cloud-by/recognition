@@ -318,7 +318,7 @@ DELETE FROM oj_user;
 -- =========================
 -- 1. 用户测试数据
 -- =========================
-INSERT INTO oj_user (
+REPLACE INTO oj_user (
     id, username, password_hash, nickname, role, last_submit_ip, created_at, updated_at
 ) VALUES
       (
@@ -375,9 +375,9 @@ INSERT INTO oj_user (
 -- =========================
 -- 2. 题目测试数据
 -- =========================
-INSERT INTO problem (
+REPLACE INTO problem (
     id, title, description, input_format, output_format,
-    sample_input, sample_output, difficulty, time_limit_ms, memory_limit_mb,
+    sample_input, sample_output, difficulty, permission_type, tags, time_limit_ms, memory_limit_mb,
     testcase_path, created_at, updated_at
 ) VALUES
       (
@@ -389,6 +389,8 @@ INSERT INTO problem (
           '1 2',
           '3',
           '入门',
+          'PUBLIC',
+          '数学,模拟',
           1000,
           128,
           '/data/testcases/problem_1/',
@@ -404,6 +406,8 @@ INSERT INTO problem (
           '5\n1 9 3 7 2',
           '9',
           '普及',
+          'PUBLIC',
+          '数组,基础',
           1000,
           128,
           '/data/testcases/problem_2/',
@@ -419,6 +423,8 @@ INSERT INTO problem (
           'level',
           'Yes',
           '普及',
+          'LOGIN_REQUIRED',
+          '字符串,双指针',
           1000,
           128,
           '/data/testcases/problem_3/',
@@ -434,11 +440,81 @@ INSERT INTO problem (
           '6',
           '8',
           '提高',
+          'CONTEST_ONLY',
+          '递归,动态规划',
           2000,
           256,
           '/data/testcases/problem_4/',
           '2026-04-01 10:30:00',
           '2026-04-01 10:30:00'
+      ),
+      (
+          5,
+          '括号匹配',
+          '给定仅包含 ()[]{} 的字符串，判断括号是否完全匹配。',
+          '输入一行字符串 s。',
+          '若匹配输出 Yes，否则输出 No。',
+          '{[()]}',
+          'Yes',
+          '普及',
+          'PUBLIC',
+          '栈,字符串',
+          1000,
+          128,
+          '/data/testcases/problem_5/',
+          '2026-04-01 10:35:00',
+          '2026-04-01 10:35:00'
+      ),
+      (
+          6,
+          '前缀和查询',
+          '给定长度为 n 的数组和 q 次区间查询，输出每次区间和。',
+          '第一行 n q；第二行 n 个整数；接下来 q 行每行 l r。',
+          '每行输出一个整数表示区间和。',
+          '5 3\n1 2 3 4 5\n1 3\n2 5\n4 4',
+          '6\n14\n4',
+          '普及',
+          'LOGIN_REQUIRED',
+          '前缀和,数组',
+          1000,
+          256,
+          '/data/testcases/problem_6/',
+          '2026-04-01 10:40:00',
+          '2026-04-01 10:40:00'
+      ),
+      (
+          7,
+          '最短路径模板',
+          '给定带权有向图，求 1 到 n 的最短路长度。',
+          '第一行 n m；接下来 m 行 u v w。',
+          '输出一个整数，表示最短路，不可达输出 -1。',
+          '4 5\n1 2 2\n1 3 5\n2 3 1\n2 4 4\n3 4 1',
+          '4',
+          '提高',
+          'CONTEST_ONLY',
+          '图论,Dijkstra',
+          2000,
+          256,
+          '/data/testcases/problem_7/',
+          '2026-04-01 10:45:00',
+          '2026-04-01 10:45:00'
+      ),
+      (
+          8,
+          '二分查找下界',
+          '给定升序数组和目标值 x，输出第一个 >= x 的位置（1-based），不存在输出 -1。',
+          '第一行 n x；第二行 n 个升序整数。',
+          '输出一个整数。',
+          '6 7\n1 3 7 7 9 10',
+          '3',
+          '入门',
+          'PUBLIC',
+          '二分,数组',
+          1000,
+          128,
+          '/data/testcases/problem_8/',
+          '2026-04-01 10:50:00',
+          '2026-04-01 10:50:00'
       );
 
 -- =========================
@@ -621,7 +697,7 @@ INSERT INTO anti_cheat_log (
 
 -- 可选：重置自增起点，便于后续继续插入
 ALTER TABLE oj_user AUTO_INCREMENT = 6;
-ALTER TABLE problem AUTO_INCREMENT = 5;
+ALTER TABLE problem AUTO_INCREMENT = 9;
 ALTER TABLE contest AUTO_INCREMENT = 3;
 ALTER TABLE submission AUTO_INCREMENT = 9;
 ALTER TABLE anti_cheat_log AUTO_INCREMENT = 4;

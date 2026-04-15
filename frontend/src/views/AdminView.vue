@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { apiGet } from '@/api/http'
 import { getAuthUser, isAdminUser } from '@/utils/auth'
 
@@ -20,6 +20,12 @@ const behaviorOptions = [
   { label: '窗口聚焦', value: 'WINDOW_FOCUS' },
   { label: '标签页可见性变化', value: 'TAB_VISIBILITY_CHANGE' },
 ]
+
+const riskSummary = computed(() => ({
+  all: logs.value.length,
+  blur: logs.value.filter((item) => item.behaviorType === 'WINDOW_BLUR').length,
+  visibility: logs.value.filter((item) => item.behaviorType === 'TAB_VISIBILITY_CHANGE').length,
+}))
 
 async function loadLogs() {
   if (!canViewAdmin.value) {
@@ -54,20 +60,13 @@ onMounted(() => {
 
 <template>
   <section class="panel">
-    <header class="top">
-      <div>
-        <h2>管理端工作台</h2>
-        <p>统一查看用户、题目、比赛和防作弊能力占位信息。</p>
+    <section v-if="canViewAdmin" class="admin-grid">
+      <div class="summary">
+        <span>日志总数 {{ riskSummary.all }}</span>
+        <span>失焦 {{ riskSummary.blur }}</span>
+        <span>可见性变更 {{ riskSummary.visibility }}</span>
       </div>
-      <ul>
-        <li>用户管理：注册/封禁/重置密码</li>
-        <li>题目管理：新增题目、测试数据路径</li>
-        <li>比赛管理：创建比赛、设置封榜</li>
-      </ul>
-    </header>
 
-    <section v-if="canViewAdmin" class="panel sub-panel">
-      <h3>防作弊日志</h3>
       <form class="filters" @submit.prevent="loadLogs">
         <label>
           用户ID
@@ -84,6 +83,7 @@ onMounted(() => {
 
       <p v-if="loading" class="state">日志加载中...</p>
       <p v-else-if="error" class="state error">{{ error }}</p>
+
       <div v-else class="table-wrap">
         <table class="log-table">
           <thead>
@@ -110,8 +110,8 @@ onMounted(() => {
         </table>
       </div>
     </section>
-    <section v-else class="panel sub-panel">
-      <h3>无访问权限</h3>
+
+    <section v-else class="sub-panel">
       <p class="state error">当前账号 {{ authUser?.username || '游客' }} 不是管理员，无法查看管理端内容。</p>
     </section>
   </section>
@@ -119,47 +119,35 @@ onMounted(() => {
 
 <style scoped>
 .panel {
-  display: grid;
-  gap: 14px;
-}
-
-.top {
   background: #fff;
   border: 1px solid #e6edf5;
   border-radius: 14px;
-  padding: 18px;
+  padding: 16px;
+}
+
+.admin-grid {
   display: grid;
   gap: 12px;
 }
 
-h2,
-h3 {
-  margin: 0;
+.summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.top p {
-  color: #6b7989;
-  margin: 8px 0 0;
-}
-
-.top ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #5f6f80;
-}
-
-.sub-panel {
-  background: #fff;
-  border: 1px solid #e6edf5;
-  border-radius: 14px;
-  padding: 18px;
+.summary span {
+  background: #eef4ff;
+  color: #4d6581;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
 }
 
 .filters {
   display: flex;
   gap: 12px;
   align-items: end;
-  margin: 12px 0;
   flex-wrap: wrap;
 }
 
@@ -209,9 +197,14 @@ button {
 
 .state {
   color: #7f8da0;
+  margin: 0;
 }
 
 .state.error {
   color: #d64545;
+}
+
+.sub-panel {
+  padding: 10px 0;
 }
 </style>

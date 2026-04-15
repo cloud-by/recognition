@@ -76,63 +76,66 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="panel">
-    <h2>比赛管理（老师/管理员）</h2>
-    <p>创建比赛时需填写比赛名称、时间，并从题库选择题目。</p>
-
-    <form class="form" @submit.prevent="submitContest">
-      <label>比赛名称<input v-model="form.title" required maxlength="200" /></label>
-      <div class="time-row">
-        <label>开始时间<input v-model="form.startTime" type="datetime-local" required /></label>
-        <label>结束时间<input v-model="form.endTime" type="datetime-local" required /></label>
-      </div>
-      <label>
-        比赛模式
-        <select v-model="form.contestType">
-          <option value="ACM">ACM</option>
-          <option value="OI">OI</option>
-          <option value="IOI">IOI</option>
-          <option value="PRACTICE">PRACTICE</option>
-        </select>
-      </label>
-      <label>
-        排名策略
-        <select v-model="form.rankingPolicy">
-          <option value="FORMAL">正式比赛（含罚时）</option>
-          <option value="CLASSROOM">课堂模式（不计罚时）</option>
-        </select>
-      </label>
-      <label class="check"><input v-model="form.freezeBoard" type="checkbox" />启用封榜</label>
-
-      <fieldset>
-        <legend>选择题目（可多选）</legend>
-        <label v-for="problem in problems" :key="problem.id" class="problem-option">
-          <input v-model="form.problemIds" :value="problem.id" type="checkbox" />
-          #{{ problem.id }} {{ problem.title }}（{{ problem.difficulty }}）
+  <section class="page">
+    <section class="panel">
+      <form class="form" @submit.prevent="submitContest">
+        <label>比赛名称<input v-model="form.title" required maxlength="200" /></label>
+        <div class="time-row">
+          <label>开始时间<input v-model="form.startTime" type="datetime-local" required /></label>
+          <label>结束时间<input v-model="form.endTime" type="datetime-local" required /></label>
+        </div>
+        <label>
+          比赛模式
+          <select v-model="form.contestType">
+            <option value="ACM">ACM</option>
+            <option value="OI">OI</option>
+            <option value="IOI">IOI</option>
+            <option value="PRACTICE">PRACTICE</option>
+          </select>
         </label>
-      </fieldset>
+        <label>
+          排名策略
+          <select v-model="form.rankingPolicy">
+            <option value="FORMAL">正式比赛（含罚时）</option>
+            <option value="CLASSROOM">课堂模式（不计罚时）</option>
+          </select>
+        </label>
+        <label class="check"><input v-model="form.freezeBoard" type="checkbox" />启用封榜</label>
 
-      <button type="submit" :disabled="loading || !form.problemIds.length">
-        {{ loading ? '创建中...' : '创建比赛' }}
-      </button>
-    </form>
+        <fieldset>
+          <legend>选择题目（可多选）</legend>
+          <label v-for="problem in problems" :key="problem.id" class="problem-option">
+            <input v-model="form.problemIds" :value="problem.id" type="checkbox" />
+            #{{ problem.id }} {{ problem.title }}（{{ problem.difficulty }}）
+          </label>
+        </fieldset>
 
-    <p v-if="message" class="ok">{{ message }}</p>
-    <p v-if="error" class="error">{{ error }}</p>
-  </section>
+        <button type="submit" :disabled="loading || !form.problemIds.length">
+          {{ loading ? '创建中...' : '创建比赛' }}
+        </button>
+      </form>
 
-  <section class="panel">
-    <h3>已有比赛</h3>
-    <ul>
-      <li v-for="item in contests" :key="item.id">
-        {{ item.title }}（{{ item.startTime }} ~ {{ item.endTime }}，{{ item.status }}）
-      </li>
-    </ul>
+      <p v-if="message" class="ok">{{ message }}</p>
+      <p v-if="error" class="error">{{ error }}</p>
+    </section>
+
+    <section class="panel">
+      <p class="count">已创建比赛：{{ contests.length }}</p>
+      <ul v-if="contests.length" class="contest-list">
+        <li v-for="item in contests" :key="item.id">
+          <strong>{{ item.title }}</strong>
+          <p>{{ item.startTime }} ~ {{ item.endTime }}</p>
+          <span>{{ item.status }}</span>
+        </li>
+      </ul>
+      <p v-else class="empty">暂无比赛。</p>
+    </section>
   </section>
 </template>
 
 <style scoped>
-.panel { background: #fff; border: 1px solid #e6ecf3; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.page { display: grid; gap: 12px; }
+.panel { background: #fff; border: 1px solid #e6ecf3; border-radius: 12px; padding: 16px; }
 .form { display: grid; gap: 12px; }
 label { display: grid; gap: 6px; color: #5b6978; }
 input, select { border: 1px solid #cedaea; border-radius: 8px; padding: 8px 10px; }
@@ -144,4 +147,10 @@ button { width: fit-content; border: 0; background: #2d8fee; color: #fff; border
 button:disabled { opacity: 0.65; cursor: not-allowed; }
 .ok { color: #1f7a3e; }
 .error { color: #d93025; }
+.count { margin: 0 0 10px; color: #5f7288; }
+.contest-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.contest-list li { border: 1px solid #e6edf5; border-radius: 10px; padding: 12px; }
+.contest-list p { margin: 6px 0 0; color: #5f7288; }
+.contest-list span { font-size: 12px; background: #eef4ff; color: #426082; border-radius: 999px; padding: 2px 8px; }
+.empty { margin: 0; color: #74879a; }
 </style>

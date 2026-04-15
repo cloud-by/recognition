@@ -20,6 +20,12 @@ const statusText = {
 }
 
 const sortedContests = computed(() => contests.value)
+const contestStats = computed(() => ({
+  all: contests.value.length,
+  waiting: contests.value.filter((item) => item.status === 'NOT_STARTED').length,
+  running: contests.value.filter((item) => item.status === 'RUNNING').length,
+  joined: contests.value.filter((item) => item.joined).length,
+}))
 
 async function loadContests() {
   loading.value = true
@@ -73,37 +79,41 @@ onMounted(loadContests)
 </script>
 
 <template>
-  <section class="panel">
-    <header>
-      <h2>比赛大厅</h2>
-      <p>当前用户和管理员都可以查看比赛信息；未开始比赛可报名。</p>
-    </header>
+  <section class="page">
+    <section class="stats">
+      <span>总比赛 {{ contestStats.all }}</span>
+      <span>待开始 {{ contestStats.waiting }}</span>
+      <span>进行中 {{ contestStats.running }}</span>
+      <span>已报名 {{ contestStats.joined }}</span>
+    </section>
 
-    <p v-if="notice" class="notice">{{ notice }}</p>
-    <p v-if="error" class="error">{{ error }}</p>
-    <p v-if="loading">正在加载比赛...</p>
+    <section class="panel">
+      <p v-if="notice" class="notice">{{ notice }}</p>
+      <p v-if="error" class="error">{{ error }}</p>
+      <p v-if="loading" class="state">正在加载比赛...</p>
 
-    <div v-else class="list">
-      <article v-for="item in sortedContests" :key="item.id" class="item">
-        <div>
-          <h3>{{ item.title }}</h3>
-          <p>比赛时间：{{ item.startTime }} ~ {{ item.endTime }}</p>
-          <p>模式：{{ item.contestType }} ｜题目数：{{ item.problemCount }} ｜状态：{{ statusText[item.status] }}</p>
-        </div>
-        <div class="actions">
-          <button @click="openDetail(item)">查看题目</button>
-          <button
-            v-if="item.status === 'NOT_STARTED' && !item.joined"
-            class="primary"
-            @click="doRegister(item)"
-          >
-            报名比赛
-          </button>
-          <span v-else-if="item.joined" class="joined">已报名</span>
-        </div>
-      </article>
-      <p v-if="!sortedContests.length" class="empty">暂无比赛。</p>
-    </div>
+      <div v-else class="list">
+        <article v-for="item in sortedContests" :key="item.id" class="item">
+          <div>
+            <h3>{{ item.title }}</h3>
+            <p>比赛时间：{{ item.startTime }} ~ {{ item.endTime }}</p>
+            <p>模式：{{ item.contestType }} ｜题目数：{{ item.problemCount }} ｜状态：{{ statusText[item.status] }}</p>
+          </div>
+          <div class="actions">
+            <button @click="openDetail(item)">查看题目</button>
+            <button
+              v-if="item.status === 'NOT_STARTED' && !item.joined"
+              class="primary"
+              @click="doRegister(item)"
+            >
+              报名比赛
+            </button>
+            <span v-else-if="item.joined" class="joined">已报名</span>
+          </div>
+        </article>
+        <p v-if="!sortedContests.length" class="empty">暂无比赛。</p>
+      </div>
+    </section>
   </section>
 
   <dialog ref="detailDialog" class="dialog">
@@ -124,17 +134,80 @@ onMounted(loadContests)
 </template>
 
 <style scoped>
-.panel { background: #fff; border: 1px solid #e6ecf3; border-radius: 12px; padding: 16px; }
-header h2 { margin: 0; }
-header p { color: #6d7b89; margin: 8px 0 12px; }
-.list { display: grid; gap: 10px; }
-.item { border: 1px solid #e6ecf3; border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; gap: 12px; }
-.actions { display: flex; align-items: center; gap: 8px; }
-button { border: 1px solid #c8d8ea; background: #f4f8ff; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
-button.primary { background: #2d8fee; color: #fff; border-color: transparent; }
+.page {
+  display: grid;
+  gap: 14px;
+}
+
+.stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stats span {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #4c6683;
+  font-size: 13px;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e6ecf3;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.item {
+  border: 1px solid #e6ecf3;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fbfdff;
+}
+
+.item h3 {
+  margin: 0;
+}
+
+.item p {
+  margin: 6px 0 0;
+  color: #617387;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button {
+  border: 1px solid #c8d8ea;
+  background: #f4f8ff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button.primary {
+  background: #2d8fee;
+  color: #fff;
+  border-color: transparent;
+}
+
 .error { color: #d93025; }
 .notice { color: #1f7a3e; }
 .joined { color: #1f7a3e; }
 .empty { color: #738293; }
+.state { margin: 0; color: #738293; }
 .dialog { border: 1px solid #c8d8ea; border-radius: 10px; min-width: 420px; }
 </style>

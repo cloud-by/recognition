@@ -10,6 +10,7 @@ const router = createRouter({
     { path: '/problems/:id/submit', component: () => import('@/views/SubmitView.vue') },
     { path: '/submissions', component: () => import('@/views/SubmissionsView.vue') },
     { path: '/contests', component: () => import('@/views/ContestsView.vue') },
+    { path: '/contests/manage', component: () => import('@/views/ContestManageView.vue'), meta: { requiresAdmin: true } },
     { path: '/admin', component: () => import('@/views/AdminView.vue'), meta: { requiresAdmin: true } },
     { path: '/login', component: () => import('@/views/LoginView.vue') },
     { path: '/register', component: () => import('@/views/RegisterView.vue') },

@@ -1,153 +1,140 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { fetchContestDetail, fetchContestList, registerContest } from '@/api/contests'
+import { getAuthUser } from '@/utils/auth'
 
-const router = useRouter()
+const user = getAuthUser()
+const contests = ref([])
+const loading = ref(false)
+const error = ref('')
+const notice = ref('')
+const detailDialog = ref(null)
+const detailLoading = ref(false)
+const detailError = ref('')
+const activeContest = ref(null)
 
-const quickEntries = [
-  { title: '题目检索', desc: '按题号、关键字、时空限制组合查询', to: '/problems', icon: '🔎' },
-  { title: '提交记录', desc: '查看最近提交状态并排查错误', to: '/submissions', icon: '🧾' },
-  { title: '比赛管理', desc: '浏览正在进行与历史比赛', to: '/contests', icon: '🏆' },
-]
+const statusText = {
+  NOT_STARTED: '未开始',
+  RUNNING: '进行中',
+  FINISHED: '已结束',
+}
 
-const highlights = [
-  { label: '活跃题目源', value: '5+' },
-  { label: '支持比赛模式', value: 'ACM / Practice' },
-  { label: '管理功能', value: '防作弊日志' },
-]
+const sortedContests = computed(() => contests.value)
+
+async function loadContests() {
+  loading.value = true
+  error.value = ''
+  try {
+    const resp = await fetchContestList(user?.id)
+    contests.value = resp.data || []
+  } catch (err) {
+    error.value = err.message || '加载比赛失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function doRegister(item) {
+  notice.value = ''
+  error.value = ''
+  try {
+    const resp = await registerContest(item.id, user?.id)
+    if (!resp.success) {
+      error.value = resp.message || '报名失败'
+      return
+    }
+    notice.value = `已报名：${item.title}`
+    await loadContests()
+  } catch (err) {
+    error.value = err.message || '报名失败'
+  }
+}
+
+async function openDetail(item) {
+  detailLoading.value = true
+  detailError.value = ''
+  activeContest.value = null
+  detailDialog.value?.showModal()
+  try {
+    const resp = await fetchContestDetail(item.id)
+    if (!resp.success) {
+      detailError.value = resp.message || '加载详情失败'
+      return
+    }
+    activeContest.value = resp.data
+  } catch (err) {
+    detailError.value = err.message || '加载详情失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+onMounted(loadContests)
 </script>
 
 <template>
-  <section class="welcome">
-    <div>
-      <p class="tag">OJ Platform</p>
-      <h2>在线判题平台基础框架</h2>
-      <p>已完成用户端 / 管理端主流程，当前版本重点优化题目检索、记录浏览与页面一致性体验。</p>
-    </div>
-    <div class="stats">
-      <article v-for="item in highlights" :key="item.label" class="stat-item">
-        <p>{{ item.label }}</p>
-        <strong>{{ item.value }}</strong>
+  <section class="panel">
+    <header>
+      <h2>比赛大厅</h2>
+      <p>当前用户和管理员都可以查看比赛信息；未开始比赛可报名。</p>
+    </header>
+
+    <p v-if="notice" class="notice">{{ notice }}</p>
+    <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="loading">正在加载比赛...</p>
+
+    <div v-else class="list">
+      <article v-for="item in sortedContests" :key="item.id" class="item">
+        <div>
+          <h3>{{ item.title }}</h3>
+          <p>比赛时间：{{ item.startTime }} ~ {{ item.endTime }}</p>
+          <p>模式：{{ item.contestType }} ｜题目数：{{ item.problemCount }} ｜状态：{{ statusText[item.status] }}</p>
+        </div>
+        <div class="actions">
+          <button @click="openDetail(item)">查看题目</button>
+          <button
+            v-if="item.status === 'NOT_STARTED' && !item.joined"
+            class="primary"
+            @click="doRegister(item)"
+          >
+            报名比赛
+          </button>
+          <span v-else-if="item.joined" class="joined">已报名</span>
+        </div>
       </article>
+      <p v-if="!sortedContests.length" class="empty">暂无比赛。</p>
     </div>
   </section>
 
-  <section class="grid">
-    <article v-for="item in quickEntries" :key="item.to" class="card">
-      <div class="head">
-        <span class="icon">{{ item.icon }}</span>
-        <h3>{{ item.title }}</h3>
-      </div>
-      <p>{{ item.desc }}</p>
-      <button @click="router.push(item.to)">立即进入</button>
-    </article>
-  </section>
+  <dialog ref="detailDialog" class="dialog">
+    <h3>比赛详情</h3>
+    <p v-if="detailLoading">加载中...</p>
+    <p v-else-if="detailError" class="error">{{ detailError }}</p>
+    <template v-else-if="activeContest">
+      <p>{{ activeContest.title }}（{{ statusText[activeContest.status] }}）</p>
+      <p>已报名人数：{{ activeContest.participantCount }}</p>
+      <ul>
+        <li v-for="problem in activeContest.problems" :key="problem.problemId">
+          #{{ problem.sortOrder }} {{ problem.title }}（{{ problem.difficulty }}）
+        </li>
+      </ul>
+    </template>
+    <form method="dialog"><button>关闭</button></form>
+  </dialog>
 </template>
 
 <style scoped>
-.welcome {
-  background: linear-gradient(125deg, #253449 0%, #2e4866 45%, #2f6793 100%);
-  border-radius: 16px;
-  padding: 22px;
-  color: #f8fbff;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 18px;
-}
-
-.tag {
-  margin: 0;
-  color: #9dc8f6;
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-h2 {
-  margin: 8px 0;
-  font-size: 34px;
-}
-
-.welcome p {
-  color: #d1e3f6;
-}
-
-.stats {
-  display: grid;
-  gap: 10px;
-}
-
-.stat-item {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.stat-item p {
-  margin: 0;
-  font-size: 12px;
-  color: #c9def4;
-}
-
-.stat-item strong {
-  font-size: 18px;
-}
-
-.grid {
-  margin-top: 16px;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-}
-
-.card {
-  background: #fff;
-  border: 1px solid #e7edf4;
-  border-radius: 14px;
-  padding: 18px;
-  box-shadow: 0 12px 32px rgba(25, 44, 74, 0.06);
-}
-
-.head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  background: #ebf4ff;
-}
-
-.card h3 {
-  margin: 0;
-}
-
-.card p {
-  color: #6d7b89;
-  min-height: 40px;
-}
-
-.card button {
-  margin-top: 8px;
-  border: 0;
-  background: linear-gradient(135deg, #3595f4, #2f82e8);
-  color: #fff;
-  border-radius: 10px;
-  padding: 9px 14px;
-  cursor: pointer;
-}
-
-@media (max-width: 900px) {
-  .welcome {
-    grid-template-columns: 1fr;
-  }
-
-  h2 {
-    font-size: 28px;
-  }
-}
+.panel { background: #fff; border: 1px solid #e6ecf3; border-radius: 12px; padding: 16px; }
+header h2 { margin: 0; }
+header p { color: #6d7b89; margin: 8px 0 12px; }
+.list { display: grid; gap: 10px; }
+.item { border: 1px solid #e6ecf3; border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; gap: 12px; }
+.actions { display: flex; align-items: center; gap: 8px; }
+button { border: 1px solid #c8d8ea; background: #f4f8ff; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+button.primary { background: #2d8fee; color: #fff; border-color: transparent; }
+.error { color: #d93025; }
+.notice { color: #1f7a3e; }
+.joined { color: #1f7a3e; }
+.empty { color: #738293; }
+.dialog { border: 1px solid #c8d8ea; border-radius: 10px; min-width: 420px; }
 </style>

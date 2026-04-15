@@ -1,0 +1,22 @@
+import { apiGet, apiPost } from '@/api/http'
+
+export function fetchContestList(viewerUserId) {
+  const query = viewerUserId ? `?viewerUserId=${viewerUserId}` : ''
+  return apiGet(`/contests${query}`)
+}
+
+export function fetchContestDetail(id) {
+  return apiGet(`/contests/${id}`)
+}
+
+export function fetchContestProblemOptions() {
+  return apiGet('/contests/problems/options')
+}
+
+export function createContest(payload) {
+  return apiPost('/contests', payload)
+}
+
+export function registerContest(contestId, userId) {
+  return apiPost(`/contests/${contestId}/register`, { userId })
+}

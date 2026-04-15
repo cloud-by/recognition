@@ -11,13 +11,18 @@ const allMenus = [
   { name: '首页', path: '/', icon: '⌂' },
   { name: '题目列表', path: '/problems', icon: '▤' },
   { name: '提交记录', path: '/submissions', icon: '↻' },
-  { name: '比赛管理', path: '/contests', icon: '🏁' },
+  { name: '比赛大厅', path: '/contests', icon: '🏁' },
+  { name: '比赛管理', path: '/contests/manage', icon: '🛠', adminOnly: true },
   { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
 ]
 
 const menus = computed(() => allMenus.filter((item) => !item.adminOnly || user.value?.role === 'ADMIN'))
-
-const pageTitle = computed(() => allMenus.find((item) => route.path.startsWith(item.path))?.name || '在线评测')
+const pageTitle = computed(() => {
+  const matched = [...allMenus]
+    .sort((a, b) => b.path.length - a.path.length)
+    .find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`))
+  return matched?.name || '在线评测'
+})
 
 function refreshUser() {
   user.value = getAuthUser()
@@ -53,10 +58,7 @@ onUnmounted(() => {
 
     <div class="main-wrap">
       <header class="topbar">
-        <div>
-          <p class="crumb">Recognition OJ / {{ pageTitle }}</p>
-          <h1>{{ pageTitle }}</h1>
-        </div>
+        <h1>{{ pageTitle }}</h1>
         <div class="user-actions">
           <template v-if="user?.id">
             <span class="welcome">你好，{{ user.nickname || user.username }}</span>
@@ -149,20 +151,14 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid #e5eaf0;
-  padding: 14px 28px;
+  padding: 12px 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.crumb {
-  margin: 0;
-  color: #96a2b2;
-  font-size: 12px;
-}
-
 h1 {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 24px;
   color: #1e2a3a;
 }
@@ -210,6 +206,6 @@ h1 {
 }
 
 .content {
-  padding: 24px;
+  padding: 18px 24px 24px;
 }
 </style>

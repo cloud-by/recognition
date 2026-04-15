@@ -17,6 +17,23 @@ CREATE TABLE IF NOT EXISTS oj_user (
     UNIQUE KEY uk_username (username)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
+SET @role_col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'oj_user'
+      AND COLUMN_NAME = 'role'
+);
+
+SET @add_role_sql := IF(
+    @role_col_exists = 0,
+    "ALTER TABLE oj_user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN' AFTER nickname",
+    'SELECT 1'
+);
+PREPARE stmt_add_role FROM @add_role_sql;
+EXECUTE stmt_add_role;
+DEALLOCATE PREPARE stmt_add_role;
+
 
 -- =========================
 -- 2. 题目表
@@ -210,12 +227,6 @@ DELETE FROM oj_user;
 -- =========================
 -- 1. 用户测试数据
 -- =========================
-INSERT INTO oj_user (id, username, password_hash, nickname, created_at, updated_at) VALUES
-                                                                                        (1, 'admin',   '$2a$10$admin_demo_hash',   '管理员', '2026-04-01 09:00:00', '2026-04-01 09:00:00'),
-                                                                                        (2, 'alice',   '$2a$10$alice_demo_hash',   'Alice', '2026-04-01 09:10:00', '2026-04-01 09:10:00'),
-                                                                                        (3, 'bob',     '$2a$10$bob_demo_hash',     'Bob',   '2026-04-01 09:20:00', '2026-04-01 09:20:00'),
-                                                                                        (4, 'charlie', '$2a$10$charlie_demo_hash', '小查',  '2026-04-01 09:30:00', '2026-04-01 09:30:00'),
-                                                                                        (5, 'diana',   '$2a$10$diana_demo_hash',   'Diana', '2026-04-01 09:40:00', '2026-04-01 09:40:00');
 
 -- =========================
 -- 2. 题目测试数据

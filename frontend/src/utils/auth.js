@@ -21,3 +21,8 @@ export function isLoggedIn() {
   const user = getAuthUser()
   return Boolean(user?.id)
 }
+
+export function isAdminUser() {
+  const user = getAuthUser()
+  return user?.role === 'ADMIN'
+}

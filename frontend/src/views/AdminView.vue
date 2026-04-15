@@ -1,10 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { apiGet } from '@/api/http'
+import { getAuthUser, isAdminUser } from '@/utils/auth'
 
 const loading = ref(false)
 const error = ref('')
 const logs = ref([])
+const authUser = ref(getAuthUser())
+const canViewAdmin = ref(isAdminUser())
 
 const filters = ref({
   userId: '',
@@ -19,6 +22,10 @@ const behaviorOptions = [
 ]
 
 async function loadLogs() {
+  if (!canViewAdmin.value) {
+    error.value = '仅管理员账号可以访问管理端页面。'
+    return
+  }
   loading.value = true
   error.value = ''
   try {
@@ -36,7 +43,13 @@ async function loadLogs() {
   }
 }
 
-onMounted(loadLogs)
+onMounted(() => {
+  authUser.value = getAuthUser()
+  canViewAdmin.value = isAdminUser()
+  if (canViewAdmin.value) {
+    loadLogs()
+  }
+})
 </script>
 
 <template>
@@ -53,7 +66,7 @@ onMounted(loadLogs)
       </ul>
     </header>
 
-    <section class="panel sub-panel">
+    <section v-if="canViewAdmin" class="panel sub-panel">
       <h3>防作弊日志</h3>
       <form class="filters" @submit.prevent="loadLogs">
         <label>
@@ -96,6 +109,10 @@ onMounted(loadLogs)
           </tbody>
         </table>
       </div>
+    </section>
+    <section v-else class="panel sub-panel">
+      <h3>无访问权限</h3>
+      <p class="state error">当前账号 {{ authUser?.username || '游客' }} 不是管理员，无法查看管理端内容。</p>
     </section>
   </section>
 </template>

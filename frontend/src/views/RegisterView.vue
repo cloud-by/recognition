@@ -1,24 +1,47 @@
 <script setup>
 import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { apiPost } from '@/api/http'
+import { setAuthUser } from '@/utils/auth'
 
+const router = useRouter()
 const form = reactive({
+  username: '',
   nickname: '',
-  email: '',
   password: '',
   confirmPassword: '',
 })
 
 const error = ref('')
 const success = ref('')
+const loading = ref(false)
 
-function onSubmit() {
+async function onSubmit() {
   error.value = ''
   success.value = ''
   if (form.password !== form.confirmPassword) {
     error.value = '两次密码输入不一致，请检查。'
     return
   }
-  success.value = `已模拟注册用户 ${form.nickname || form.email}（后续可接真实接口）`
+  loading.value = true
+  try {
+    const resp = await apiPost('/auth/register', {
+      username: form.username,
+      nickname: form.nickname,
+      password: form.password,
+    })
+    if (!resp.success || !resp.data?.id) {
+      error.value = resp.message || '注册失败'
+      return
+    }
+    setAuthUser(resp.data)
+    success.value = `注册成功，欢迎你：${resp.data.nickname || resp.data.username}`
+    setTimeout(() => router.push('/problems'), 700)
+  } catch (err) {
+    error.value = err.message || '注册失败，请稍后重试'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -31,12 +54,12 @@ function onSubmit() {
 
       <form class="form" @submit.prevent="onSubmit">
         <label>
-          昵称
-          <input v-model="form.nickname" type="text" placeholder="请输入昵称" required />
+          用户名
+          <input v-model="form.username" type="text" placeholder="请输入用户名" required />
         </label>
         <label>
-          邮箱
-          <input v-model="form.email" type="email" placeholder="请输入邮箱" required />
+          昵称
+          <input v-model="form.nickname" type="text" placeholder="请输入昵称" required />
         </label>
         <label>
           密码
@@ -47,7 +70,7 @@ function onSubmit() {
           <input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" required />
         </label>
 
-        <button type="submit">注 册</button>
+        <button type="submit" :disabled="loading">{{ loading ? '注册中...' : '注 册' }}</button>
       </form>
 
       <p v-if="error" class="tips error">{{ error }}</p>
@@ -114,6 +137,11 @@ button {
   color: #fff;
   background: linear-gradient(135deg, #3595f4, #2f82e8);
   cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .tips {

@@ -7,15 +7,17 @@ const route = useRoute()
 const router = useRouter()
 const user = ref(null)
 
-const menus = [
+const allMenus = [
   { name: '首页', path: '/', icon: '⌂' },
   { name: '题目列表', path: '/problems', icon: '▤' },
   { name: '提交记录', path: '/submissions', icon: '↻' },
   { name: '比赛管理', path: '/contests', icon: '🏁' },
-  { name: '管理端', path: '/admin', icon: '⚙' },
+  { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
 ]
 
-const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item.path))?.name || '在线评测')
+const menus = computed(() => allMenus.filter((item) => !item.adminOnly || user.value?.role === 'ADMIN'))
+
+const pageTitle = computed(() => allMenus.find((item) => route.path.startsWith(item.path))?.name || '在线评测')
 
 function refreshUser() {
   user.value = getAuthUser()
@@ -58,6 +60,7 @@ onUnmounted(() => {
         <div class="user-actions">
           <template v-if="user?.id">
             <span class="welcome">你好，{{ user.nickname || user.username }}</span>
+            <span v-if="user?.role === 'ADMIN'" class="role-badge">管理员</span>
             <button class="text-btn" @click="logout">退出</button>
           </template>
           <template v-else>
@@ -173,6 +176,15 @@ h1 {
 .welcome {
   color: #5a6b7f;
   font-size: 14px;
+}
+
+.role-badge {
+  font-size: 12px;
+  color: #24548c;
+  background: #e7f1ff;
+  border: 1px solid #b9d8ff;
+  border-radius: 999px;
+  padding: 2px 8px;
 }
 
 .text-btn {

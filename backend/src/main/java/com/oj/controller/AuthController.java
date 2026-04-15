@@ -4,6 +4,7 @@ import com.oj.dto.ApiResponse;
 import com.oj.entity.OjUser;
 import com.oj.repository.OjUserRepository;
 import jakarta.validation.constraints.NotBlank;
+import java.util.Locale;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +24,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ApiResponse<OjUser> register(@RequestBody RegisterRequest request) {
+    public ApiResponse<LoginResponse> register(@RequestBody RegisterRequest request) {
         if (userRepository.findByUsername(request.username()).isPresent()) {
             return ApiResponse.fail("用户名已存在");
         }
@@ -32,23 +33,30 @@ public class AuthController {
         user.setUsername(request.username());
         user.setNickname(request.nickname());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        return ApiResponse.ok(userRepository.save(user));
+        user.setRole(normalizeRole(request.role()));
+        OjUser saved = userRepository.save(user);
+        return ApiResponse.ok(new LoginResponse(saved.getId(), saved.getUsername(), saved.getNickname(), saved.getRole()));
     }
 
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {
         return userRepository.findByUsername(request.username())
                 .filter(user -> passwordEncoder.matches(request.password(), user.getPasswordHash()))
-                .map(user -> ApiResponse.ok(new LoginResponse(user.getId(), user.getUsername(), user.getNickname())))
+                .map(user -> ApiResponse.ok(new LoginResponse(user.getId(), user.getUsername(), user.getNickname(), user.getRole())))
                 .orElseGet(() -> ApiResponse.fail("用户名或密码错误"));
     }
 
-    public record RegisterRequest(@NotBlank String username, @NotBlank String password, @NotBlank String nickname) {
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "USER";
+        }
+        return "ADMIN".equals(role.toUpperCase(Locale.ROOT)) ? "ADMIN" : "USER";
     }
 
+    public record RegisterRequest(@NotBlank String username, @NotBlank String password, @NotBlank String nickname, String role) { }
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
     }
 
-    public record LoginResponse(Long id, String username, String nickname) {
+    public record LoginResponse(Long id, String username, String nickname, String role) {
     }
 }

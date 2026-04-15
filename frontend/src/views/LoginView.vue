@@ -1,6 +1,10 @@
 <script setup>
 import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { apiPost } from '@/api/http'
+import { setAuthUser } from '@/utils/auth'
 
+const router = useRouter()
 const form = reactive({
   username: '',
   password: '',
@@ -8,9 +12,32 @@ const form = reactive({
 })
 
 const message = ref('')
+const error = ref('')
+const loading = ref(false)
 
-function onSubmit() {
-  message.value = `已模拟登录：${form.username || '未填写用户名'}（后续可接真实接口）`
+async function onSubmit() {
+  loading.value = true
+  message.value = ''
+  error.value = ''
+  try {
+    const resp = await apiPost('/auth/login', {
+      username: form.username,
+      password: form.password,
+    })
+
+    if (!resp.success || !resp.data?.id) {
+      error.value = resp.message || '登录失败'
+      return
+    }
+
+    setAuthUser(resp.data)
+    message.value = `登录成功，欢迎你：${resp.data.nickname || resp.data.username}`
+    setTimeout(() => router.push('/problems'), 600)
+  } catch (err) {
+    error.value = err.message || '登录失败，请稍后再试'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -19,7 +46,7 @@ function onSubmit() {
     <article class="auth-card">
       <p class="tag">Welcome Back</p>
       <h2>登录 Recognition OJ</h2>
-      <p class="desc">登录后可查看提交记录、参与比赛并使用管理功能（按权限）。</p>
+      <p class="desc">登录后可提交代码、查看提交记录并参加比赛。</p>
 
       <form class="form" @submit.prevent="onSubmit">
         <label>
@@ -35,10 +62,11 @@ function onSubmit() {
           记住我
         </label>
 
-        <button type="submit">登 录</button>
+        <button type="submit" :disabled="loading">{{ loading ? '登录中...' : '登 录' }}</button>
       </form>
 
       <p v-if="message" class="tips">{{ message }}</p>
+      <p v-if="error" class="error">{{ error }}</p>
     </article>
   </section>
 </template>
@@ -110,11 +138,21 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .tips {
   margin: 14px 0 0;
   color: #2d8a49;
   background: #ecf9f1;
   border-radius: 10px;
   padding: 8px 10px;
+}
+
+.error {
+  margin-top: 10px;
+  color: #d93025;
 }
 </style>

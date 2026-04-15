@@ -2,20 +2,22 @@
 import { computed, onMounted, ref } from 'vue'
 import { apiGet } from '@/api/http'
 
-const userId = 1
+import { getAuthUser } from '@/utils/auth'
+
+const userId = getAuthUser()?.id
 const loading = ref(false)
 const message = ref('')
 const submissions = ref([])
 
 const stats = computed(() => ({
   total: submissions.value.length,
-  accepted: submissions.value.filter((item) => item.judgeStatus?.toUpperCase() === 'ACCEPTED').length,
+  accepted: submissions.value.filter((item) => item.judgeStatus?.toUpperCase() === 'AC').length,
   running: submissions.value.filter((item) => ['PENDING', 'JUDGING'].includes(item.judgeStatus?.toUpperCase())).length,
 }))
 
 function statusClass(status = '') {
   const normalized = status.toUpperCase()
-  if (normalized === 'ACCEPTED') return 'ok'
+  if (normalized === 'AC') return 'ok'
   if (['PENDING', 'JUDGING'].includes(normalized)) return 'pending'
   return 'failed'
 }
@@ -23,6 +25,10 @@ function statusClass(status = '') {
 onMounted(async () => {
   loading.value = true
   try {
+    if (!userId) {
+      message.value = '请先登录后查看提交记录。'
+      return
+    }
     const resp = await apiGet(`/submissions?userId=${userId}`)
     submissions.value = resp.data || []
     if (!submissions.value.length) {

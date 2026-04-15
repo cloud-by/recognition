@@ -36,6 +36,9 @@ public class Problem {
     @Column(name = "sample_output", columnDefinition = "TEXT")
     private String sampleOutput;
 
+    @Column(name = "difficulty", nullable = false, length = 20)
+    private String difficulty = "普及";
+
     @Column(name = "time_limit_ms", nullable = false)
     private Integer timeLimitMs = 1000;
 
@@ -76,6 +79,8 @@ public class Problem {
     public void setSampleInput(String sampleInput) { this.sampleInput = sampleInput; }
     public String getSampleOutput() { return sampleOutput; }
     public void setSampleOutput(String sampleOutput) { this.sampleOutput = sampleOutput; }
+    public String getDifficulty() { return difficulty; }
+    public void setDifficulty(String difficulty) { this.difficulty = difficulty; }
     public Integer getTimeLimitMs() { return timeLimitMs; }
     public void setTimeLimitMs(Integer timeLimitMs) { this.timeLimitMs = timeLimitMs; }
     public Integer getMemoryLimitMb() { return memoryLimitMb; }

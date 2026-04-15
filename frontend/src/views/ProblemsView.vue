@@ -9,14 +9,17 @@ const error = ref('')
 const problems = ref([])
 const total = computed(() => filteredProblems.value.length)
 
-const sourceTabs = ['洛谷', '主题库', '入门与面试', 'Codeforces', 'AtCoder']
-const selectedTab = ref('洛谷')
-
 const filters = ref({
   keyword: '',
   maxTime: '',
   maxMemory: '',
 })
+
+const difficultyClassMap = {
+  入门: 'lv-beginner',
+  普及: 'lv-normal',
+  提高: 'lv-advanced',
+}
 
 const filteredProblems = computed(() => {
   const keyword = filters.value.keyword.trim().toLowerCase()
@@ -55,6 +58,10 @@ function goDetail(problemId) {
   router.push(`/problems/${problemId}`)
 }
 
+function difficultyClass(difficulty = '普及') {
+  return difficultyClassMap[difficulty] || 'lv-normal'
+}
+
 onMounted(loadProblems)
 </script>
 
@@ -65,17 +72,6 @@ onMounted(loadProblems)
   </section>
 
   <section class="panel">
-    <div class="tabs">
-      <button
-        v-for="tab in sourceTabs"
-        :key="tab"
-        :class="['tab', { active: selectedTab === tab }]"
-        @click="selectedTab = tab"
-      >
-        {{ tab }}
-      </button>
-    </div>
-
     <form class="filters" @submit.prevent="loadProblems">
       <label>
         关键词
@@ -107,6 +103,7 @@ onMounted(loadProblems)
         <tr>
           <th>题号</th>
           <th>题目名称</th>
+          <th>等级</th>
           <th>时间限制</th>
           <th>内存限制</th>
           <th>操作</th>
@@ -114,11 +111,16 @@ onMounted(loadProblems)
         </thead>
         <tbody>
         <tr v-if="!filteredProblems.length">
-          <td colspan="5" class="empty">暂无匹配题目</td>
+          <td colspan="6" class="empty">暂无匹配题目</td>
         </tr>
         <tr v-for="p in filteredProblems" :key="p.id">
           <td>P{{ String(p.id).padStart(4, '0') }}</td>
-          <td class="title">{{ p.title }}</td>
+          <td class="title">
+            <button class="title-link" @click="goDetail(p.id)">{{ p.title }}</button>
+          </td>
+          <td>
+            <span :class="['difficulty', difficultyClass(p.difficulty)]">{{ p.difficulty || '普及' }}</span>
+          </td>
           <td>{{ p.timeLimitMs }} ms</td>
           <td>{{ p.memoryLimitMb }} MB</td>
           <td>
@@ -155,27 +157,6 @@ onMounted(loadProblems)
   border: 1px solid #e7edf4;
   border-radius: 12px;
   padding: 18px;
-}
-
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-
-.tab {
-  border: 0;
-  background: #f4f7fb;
-  color: #6a7888;
-  padding: 8px 14px;
-  border-radius: 8px;
-}
-
-.tab.active {
-  color: #2b84e8;
-  background: #e7f1ff;
-  font-weight: 600;
 }
 
 .filters {
@@ -225,7 +206,18 @@ table { width: 100%; border-collapse: collapse; }
 th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #edf2f8; }
 th { color: #8593a3; font-weight: 600; }
 .title { color: #2e8ae8; }
+.title-link {
+  background: transparent;
+  color: #2e8ae8;
+  padding: 0;
+  font-size: 15px;
+}
 .link { color: #2e8ae8; background: transparent; padding: 0; }
 .empty, .state { color: #98a6b5; }
 .error { color: #e74c3c; }
+
+.difficulty { font-weight: 700; }
+.lv-beginner { color: #e74c3c; }
+.lv-normal { color: #2e9c52; }
+.lv-advanced { color: #2d6cdf; }
 </style>

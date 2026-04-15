@@ -1,8 +1,11 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getAuthUser, setAuthUser } from '@/utils/auth'
 
 const route = useRoute()
+const router = useRouter()
+const user = ref(null)
 
 const menus = [
   { name: '首页', path: '/', icon: '⌂' },
@@ -13,6 +16,25 @@ const menus = [
 ]
 
 const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item.path))?.name || '在线评测')
+
+function refreshUser() {
+  user.value = getAuthUser()
+}
+
+function logout() {
+  setAuthUser(null)
+  refreshUser()
+  router.push('/login')
+}
+
+onMounted(() => {
+  refreshUser()
+  window.addEventListener('storage', refreshUser)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('storage', refreshUser)
+})
 </script>
 
 <template>
@@ -34,8 +56,14 @@ const pageTitle = computed(() => menus.find((item) => route.path.startsWith(item
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="user-actions">
-          <RouterLink to="/login" class="text-btn">登录</RouterLink>
-          <RouterLink to="/register" class="text-btn primary">注册</RouterLink>
+          <template v-if="user?.id">
+            <span class="welcome">你好，{{ user.nickname || user.username }}</span>
+            <button class="text-btn" @click="logout">退出</button>
+          </template>
+          <template v-else>
+            <RouterLink to="/login" class="text-btn">登录</RouterLink>
+            <RouterLink to="/register" class="text-btn primary">注册</RouterLink>
+          </template>
         </div>
       </header>
 
@@ -139,6 +167,12 @@ h1 {
 .user-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.welcome {
+  color: #5a6b7f;
+  font-size: 14px;
 }
 
 .text-btn {

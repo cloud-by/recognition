@@ -36,10 +36,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<String> login(@RequestBody LoginRequest request) {
+    public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {
         return userRepository.findByUsername(request.username())
                 .filter(user -> passwordEncoder.matches(request.password(), user.getPasswordHash()))
-                .map(user -> ApiResponse.ok("登录成功，后续可替换为JWT"))
+                .map(user -> ApiResponse.ok(new LoginResponse(user.getId(), user.getUsername(), user.getNickname())))
                 .orElseGet(() -> ApiResponse.fail("用户名或密码错误"));
     }
 
@@ -47,5 +47,8 @@ public class AuthController {
     }
 
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+    }
+
+    public record LoginResponse(Long id, String username, String nickname) {
     }
 }

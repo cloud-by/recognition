@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS problem (
     output_format TEXT COMMENT '输出格式说明',
     sample_input TEXT COMMENT '样例输入',
     sample_output TEXT COMMENT '样例输出',
+    difficulty ENUM('入门', '普及', '提高') NOT NULL DEFAULT '普及' COMMENT '题目难度',
     time_limit_ms INT UNSIGNED NOT NULL DEFAULT 1000 COMMENT '时间限制(ms)',
     memory_limit_mb INT UNSIGNED NOT NULL DEFAULT 256 COMMENT '内存限制(MB)',
     testcase_path VARCHAR(500) NOT NULL COMMENT '测试数据存储路径',
@@ -37,6 +38,43 @@ CREATE TABLE IF NOT EXISTS problem (
     KEY idx_problem_title (title)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='题目表';
 
+SET @difficulty_col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'problem'
+      AND COLUMN_NAME = 'difficulty'
+);
+
+SET @add_difficulty_sql := IF(
+    @difficulty_col_exists = 0,
+    "ALTER TABLE problem ADD COLUMN difficulty ENUM('入门', '普及', '提高') NOT NULL DEFAULT '普及' COMMENT '题目难度' AFTER sample_output",
+    'SELECT 1'
+);
+PREPARE stmt_add_difficulty FROM @add_difficulty_sql;
+EXECUTE stmt_add_difficulty;
+DEALLOCATE PREPARE stmt_add_difficulty;
+
+SET @difficulty_col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'problem'
+      AND COLUMN_NAME = 'difficulty'
+);
+
+SET @modify_difficulty_sql := IF(
+    @difficulty_col_exists > 0,
+    "ALTER TABLE problem MODIFY COLUMN difficulty ENUM('入门', '普及', '提高') NOT NULL DEFAULT '普及' COMMENT '题目难度'",
+    'SELECT 1'
+);
+PREPARE stmt_modify_difficulty FROM @modify_difficulty_sql;
+EXECUTE stmt_modify_difficulty;
+DEALLOCATE PREPARE stmt_modify_difficulty;
+
+UPDATE problem
+SET difficulty = '普及'
+WHERE difficulty IS NULL OR difficulty NOT IN ('入门', '普及', '提高');
 
 -- =========================
 -- 3. 提交记录表
@@ -184,7 +222,7 @@ INSERT INTO oj_user (id, username, password_hash, nickname, created_at, updated_
 -- =========================
 INSERT INTO problem (
     id, title, description, input_format, output_format,
-    sample_input, sample_output, time_limit_ms, memory_limit_mb,
+    sample_input, sample_output, difficulty, time_limit_ms, memory_limit_mb,
     testcase_path, created_at, updated_at
 ) VALUES
       (
@@ -195,6 +233,7 @@ INSERT INTO problem (
           '输出一个整数，表示 A + B 的结果。',
           '1 2',
           '3',
+          '入门',
           1000,
           128,
           '/data/testcases/problem_1/',
@@ -209,6 +248,7 @@ INSERT INTO problem (
           '输出一个整数，表示最大值。',
           '5\n1 9 3 7 2',
           '9',
+          '普及',
           1000,
           128,
           '/data/testcases/problem_2/',
@@ -223,6 +263,7 @@ INSERT INTO problem (
           '输出 Yes 或 No。',
           'level',
           'Yes',
+          '普及',
           1000,
           128,
           '/data/testcases/problem_3/',
@@ -237,6 +278,7 @@ INSERT INTO problem (
           '输出一个整数。',
           '6',
           '8',
+          '提高',
           2000,
           256,
           '/data/testcases/problem_4/',

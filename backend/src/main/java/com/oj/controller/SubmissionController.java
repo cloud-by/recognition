@@ -64,11 +64,16 @@ public class SubmissionController {
             return ApiResponse.fail("用户或题目不存在");
         }
 
+        String language = request.language().toLowerCase();
+        if (!List.of("c", "cpp").contains(language)) {
+            return ApiResponse.fail("当前仅支持 C / C++ 提交");
+        }
+
         Submission submission = new Submission();
         submission.setUser(user.get());
         submission.setProblem(problem.get());
         submission.setSourceCode(request.sourceCode());
-        submission.setLanguage(request.language());
+        submission.setLanguage(language);
         submission.setJudgeStatus(Submission.JudgeStatus.PENDING);
         submission.setSubmitTime(LocalDateTime.now());
 

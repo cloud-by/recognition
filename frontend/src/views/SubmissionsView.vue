@@ -68,6 +68,7 @@ onMounted(async () => {
           <th>语言</th>
           <th>状态</th>
           <th>提交时间</th>
+          <th>详情</th>
         </tr>
         </thead>
         <tbody>
@@ -79,6 +80,7 @@ onMounted(async () => {
             <span :class="['badge', statusClass(item.judgeStatus)]">{{ item.judgeStatus }}</span>
           </td>
           <td>{{ item.submitTime || '-' }}</td>
+          <td class="detail">{{ item.judgeDetail || '-' }}</td>
         </tr>
         </tbody>
       </table>

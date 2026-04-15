@@ -66,7 +66,7 @@ async function submitCode() {
       return
     }
 
-    success.value = `提交成功，记录已入库（submissionId: ${resp.data?.submissionId || '-' }），后续将接入 Judge0。`
+    success.value = `提交成功：#${resp.data?.submissionId || '-'}，状态 ${resp.data?.judgeStatus || '-'}，耗时 ${resp.data?.runtimeMs || 0}ms，内存 ${resp.data?.memoryKb || 0}KB`
   } catch (err) {
     error.value = err.message || '提交失败，请稍后再试'
   } finally {
@@ -120,7 +120,7 @@ onMounted(() => {
         </label>
 
         <button type="submit" class="submit" :disabled="submitting">
-          {{ submitting ? '提交中...' : '提交到评测队列' }}
+          {{ submitting ? '提交并评测中...' : '提交并调用 Judge0 评测' }}
         </button>
       </form>
 

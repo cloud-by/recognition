@@ -640,3 +640,28 @@ UNION ALL
 SELECT 'submission', COUNT(*) FROM submission
 UNION ALL
 SELECT 'anti_cheat_log', COUNT(*) FROM anti_cheat_log;
+SET @judge_token_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'submission' AND COLUMN_NAME = 'judge_token'
+);
+SET @add_judge_token_sql := IF(
+    @judge_token_exists = 0,
+    "ALTER TABLE submission ADD COLUMN judge_token VARCHAR(100) NULL COMMENT 'Judge0 token' AFTER submit_ip",
+    'SELECT 1'
+);
+PREPARE stmt_add_judge_token FROM @add_judge_token_sql;
+EXECUTE stmt_add_judge_token;
+DEALLOCATE PREPARE stmt_add_judge_token;
+
+SET @judge_detail_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'submission' AND COLUMN_NAME = 'judge_detail'
+);
+SET @add_judge_detail_sql := IF(
+    @judge_detail_exists = 0,
+    "ALTER TABLE submission ADD COLUMN judge_detail TEXT NULL COMMENT '判题详情' AFTER judge_token",
+    'SELECT 1'
+);
+PREPARE stmt_add_judge_detail FROM @add_judge_detail_sql;
+EXECUTE stmt_add_judge_detail;
+DEALLOCATE PREPARE stmt_add_judge_detail;

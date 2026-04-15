@@ -9,6 +9,7 @@ import com.oj.repository.AntiCheatLogRepository;
 import com.oj.repository.OjUserRepository;
 import com.oj.repository.ProblemRepository;
 import com.oj.repository.SubmissionRepository;
+import com.oj.service.Judge0Service;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -31,17 +32,20 @@ public class SubmissionController {
     private final OjUserRepository userRepository;
     private final ProblemRepository problemRepository;
     private final AntiCheatLogRepository antiCheatLogRepository;
+    private final Judge0Service judge0Service;
 
     public SubmissionController(
             SubmissionRepository submissionRepository,
             OjUserRepository userRepository,
             ProblemRepository problemRepository,
-            AntiCheatLogRepository antiCheatLogRepository
+            AntiCheatLogRepository antiCheatLogRepository,
+            Judge0Service judge0Service
     ) {
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.problemRepository = problemRepository;
         this.antiCheatLogRepository = antiCheatLogRepository;
+        this.judge0Service = judge0Service;
     }
 
     @GetMapping
@@ -56,7 +60,8 @@ public class SubmissionController {
                         "runtimeMs", Optional.ofNullable(submission.getRuntimeMs()).orElse(0),
                         "memoryKb", Optional.ofNullable(submission.getMemoryKb()).orElse(0),
                         "submitIp", Optional.ofNullable(submission.getSubmitIp()).orElse(""),
-                        "submitTime", submission.getSubmitTime()
+                        "submitTime", submission.getSubmitTime(),
+                        "judgeDetail", Optional.ofNullable(submission.getJudgeDetail()).orElse("")
                 ))
                 .toList();
         return ApiResponse.ok(data);
@@ -86,13 +91,27 @@ public class SubmissionController {
         submission.setSubmitTime(LocalDateTime.now());
         submission.setSubmitIp(submitIp);
 
+        submission.setJudgeStatus(Submission.JudgeStatus.JUDGING);
         Submission saved = submissionRepository.save(submission);
         doIpCheatCheck(user.get(), saved, submitIp);
 
+        Judge0Service.JudgeResult judgeResult = judge0Service.judge(language, request.sourceCode(), problem.get());
+        saved.setJudgeStatus(judgeResult.judgeStatus());
+        saved.setRuntimeMs(judgeResult.runtimeMs());
+        saved.setMemoryKb(judgeResult.memoryKb());
+        saved.setJudgeToken(judgeResult.token());
+        saved.setJudgeDetail(judgeResult.detail());
+        submissionRepository.save(saved);
+
         Map<String, Object> resp = Map.of(
                 "submissionId", saved.getId(),
-                "queueStatus", "QUEUED",
-                "message", "基础框架已接收提交，后续可接入 Judge0 + Redis 队列",
+                "judgeStatus", saved.getJudgeStatus(),
+                "runtimeMs", Optional.ofNullable(saved.getRuntimeMs()).orElse(0),
+                "memoryKb", Optional.ofNullable(saved.getMemoryKb()).orElse(0),
+                "judgeDetail", Optional.ofNullable(saved.getJudgeDetail()).orElse(""),
+                "judgeToken", Optional.ofNullable(saved.getJudgeToken()).orElse(""),
+                "rawStatus", judgeResult.rawStatus(),
+                "message", judgeResult.success() ? "Judge0评测完成" : "Judge0评测失败，已标记为SE",
                 "submitIp", submitIp
         );
         return ApiResponse.ok(resp);

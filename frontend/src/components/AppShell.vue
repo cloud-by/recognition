@@ -1,7 +1,7 @@
 <script setup>
-  import { computed, onMounted, onUnmounted, ref } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
-  import { getAuthUser, setAuthUser } from '@/utils/auth'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getAuthChangeEventName, getAuthUser, setAuthUser } from '@/utils/auth'
 
   const route = useRoute()
   const router = useRouter()

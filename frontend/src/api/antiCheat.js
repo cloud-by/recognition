@@ -1,6 +1,6 @@
 import { apiPost } from '@/api/http'
+import { getAuthUser } from '@/utils/auth'
 
-const USER_ID = 1
 const THROTTLE_MS = 10_000
 const lastReportAt = new Map()
 
@@ -18,10 +18,14 @@ async function report(eventType, detailInfo) {
   if (!shouldReport(eventType)) {
     return
   }
+  const userId = getAuthUser()?.id
+  if (!userId) {
+    return
+  }
 
   try {
     await apiPost('/anti-cheat/logs', {
-      userId: USER_ID,
+      userId,
       behaviorType: eventType,
       detailInfo,
       occurredTime: new Date().toISOString(),

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { isAdminUser, isManagerUser } from '@/utils/auth'
+import { isAdminUser, isLoggedIn, isManagerUser, isTeacherUser } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,7 +20,11 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  if ((to.meta.requiresTeacher || to.meta.requiresManager || to.meta.requiresAdmin) && !isLoggedIn()) {
+    return '/login'
+  }
   if (to.meta.requiresAdmin && !isAdminUser()) return '/login'
+  if (to.meta.requiresTeacher && !isTeacherUser()) return '/login'
   if (to.meta.requiresManager && !isManagerUser()) return '/login'
   return true
 })

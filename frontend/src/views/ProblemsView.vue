@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { getAuthChangeEventName, getAuthUser } from '@/utils/auth'
+import { getAuthChangeEventName, getAuthUser, isAdminUser } from '@/utils/auth'
 import { useRouter } from 'vue-router'
 import { apiGet } from '@/api/http'
 
@@ -8,7 +8,8 @@ const router = useRouter()
 const loading = ref(false)
 const error = ref('')
 const problems = ref([])
-const total = computed(() => filteredProblems.value.length)
+const displayedProblems = ref([])
+const total = computed(() => displayedProblems.value.length)
 
 const filters = ref({
   keyword: '',
@@ -23,17 +24,17 @@ const difficultyClassMap = {
 }
 
 const overview = computed(() => ({
-  beginner: filteredProblems.value.filter((item) => item.difficulty === '入门').length,
-  normal: filteredProblems.value.filter((item) => !item.difficulty || item.difficulty === '普及').length,
-  advanced: filteredProblems.value.filter((item) => item.difficulty === '提高').length,
+  beginner: displayedProblems.value.filter((item) => item.difficulty === '入门').length,
+  normal: displayedProblems.value.filter((item) => !item.difficulty || item.difficulty === '普及').length,
+  advanced: displayedProblems.value.filter((item) => item.difficulty === '提高').length,
 }))
 
-const filteredProblems = computed(() => {
+function applyFilters() {
   const keyword = filters.value.keyword.trim().toLowerCase()
   const maxTime = Number(filters.value.maxTime)
   const maxMemory = Number(filters.value.maxMemory)
 
-  return problems.value.filter((problem) => {
+  displayedProblems.value = problems.value.filter((problem) => {
     if (!problem) return false
     const title = String(problem.title || '').toLowerCase()
     const passKeyword = !keyword || String(problem.id || '').includes(keyword) || title.includes(keyword)
@@ -41,20 +42,19 @@ const filteredProblems = computed(() => {
     const passMemory = !maxMemory || Number(problem.memoryLimitMb || 0) <= maxMemory
     return passKeyword && passTime && passMemory
   })
-})
+}
 
 async function loadProblems() {
   loading.value = true
   error.value = ''
   try {
-    const keyword = filters.value.keyword.trim()
     const user = getAuthUser()
     const params = new URLSearchParams()
-    if (keyword) params.set('keyword', keyword)
     if (user?.id) params.set('viewerUserId', user.id)
     const query = params.toString() ? `?${params.toString()}` : ''
     const resp = await apiGet(`/problems${query}`)
     problems.value = resp.data || []
+    displayedProblems.value = [...problems.value]
   } catch (err) {
     error.value = err.message || '题目加载失败'
   } finally {
@@ -62,9 +62,8 @@ async function loadProblems() {
   }
 }
 
-function resetFilters() {
-  filters.value = { keyword: '', maxTime: '', maxMemory: '' }
-  loadProblems()
+function refreshList() {
+  displayedProblems.value = [...problems.value]
 }
 
 function goDetail(problemId) {
@@ -89,23 +88,25 @@ onUnmounted(() => {
 <template>
   <section class="problem-page">
     <section class="panel filter-panel">
-      <form class="filters" @submit.prevent="loadProblems">
+      <form class="filters" @submit.prevent="applyFilters">
         <label>
           关键词
-          <input v-model="filters.keyword" type="text" placeholder="算法、标题或题号" />
+          <input v-model="filters.keyword" type="text" placeholder="请输入内容" />
         </label>
         <label>
           时间限制 ≤
-          <input v-model="filters.maxTime" type="number" min="0" placeholder="ms" />
+          <input v-model="filters.maxTime" type="number" min="0" placeholder="请输入内容" />
         </label>
         <label>
           内存限制 ≤
-          <input v-model="filters.maxMemory" type="number" min="0" placeholder="MB" />
+          <input v-model="filters.maxMemory" type="number" min="0" placeholder="请输入内容" />
         </label>
 
         <div class="actions">
-          <button type="submit" class="primary">搜索</button>
-          <button type="button" class="ghost" @click="resetFilters">清空筛选</button>
+          <button type="submit" class="primary">查询</button>
+          <button type="button" class="ghost" @click="refreshList">刷新</button>
+          <button v-if="isAdminUser()" type="button" class="ghost" @click="router.push('/admin/problems/create')">上传题目</button>
+          <button v-if="isAdminUser()" type="button" class="ghost" @click="router.push('/admin/tags')">管理标签</button>
         </div>
       </form>
 
@@ -121,7 +122,7 @@ onUnmounted(() => {
       <p v-if="loading" class="state">加载中...</p>
       <p v-else-if="error" class="state error">{{ error }}</p>
 
-      <div v-else-if="filteredProblems.length" class="table-wrap">
+      <div v-else-if="displayedProblems.length" class="table-wrap">
         <table>
           <thead>
           <tr>
@@ -136,7 +137,7 @@ onUnmounted(() => {
           </tr>
           </thead>
           <tbody>
-          <tr v-for="p in filteredProblems" :key="p.id">
+          <tr v-for="p in displayedProblems" :key="p.id">
             <td>P{{ String(p.id).padStart(4, '0') }}</td>
             <td class="title">
               <button class="title-link" @click="goDetail(p.id)">{{ p.title }}</button>
@@ -158,7 +159,7 @@ onUnmounted(() => {
 
       <div v-else class="empty-block">
         <p>暂无匹配题目</p>
-        <button class="ghost" @click="resetFilters">恢复默认筛选</button>
+        <button class="ghost" @click="refreshList">刷新</button>
       </div>
     </section>
   </section>
@@ -203,6 +204,7 @@ input {
 .actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 button {
@@ -218,38 +220,38 @@ button {
 }
 
 .ghost {
-  background: #f2f6fb;
-  color: #5d6d7e;
+  background: #eef4fd;
+  color: #4c627b;
 }
 
 .overview {
-  margin-top: 12px;
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .pill {
-  padding: 6px 11px;
+  background: #eef4ff;
   border-radius: 999px;
-  background: #eff5fc;
-  color: #4f6781;
+  padding: 5px 11px;
   font-size: 13px;
+  color: #567;
 }
 
 .pill.beginner {
-  background: #ffefee;
-  color: #c73e35;
+  background: #fff0ea;
+  color: #d84f35;
 }
 
 .pill.normal {
-  background: #ebf9ef;
-  color: #25874a;
+  background: #e9f8ee;
+  color: #2f9156;
 }
 
 .pill.advanced {
-  background: #eaf2ff;
-  color: #2d6cdf;
+  background: #edf1ff;
+  color: #4b68d1;
 }
 
 .table-wrap {
@@ -263,53 +265,53 @@ table {
 
 th,
 td {
-  padding: 12px 10px;
+  padding: 11px 10px;
   text-align: left;
-  border-bottom: 1px solid #edf2f8;
+  border-bottom: 1px solid #e9f0f8;
 }
 
 th {
-  color: #8593a3;
-  font-weight: 600;
+  color: #74859a;
+  font-size: 13px;
 }
 
 .title-link,
 .link {
   background: transparent;
-  color: #2e8ae8;
+  border: 0;
   padding: 0;
+  color: #2a7fe6;
+  cursor: pointer;
+}
+
+.difficulty {
+  font-weight: 600;
+}
+
+.lv-beginner {
+  color: #e24d2f;
+}
+
+.lv-normal {
+  color: #219363;
+}
+
+.lv-advanced {
+  color: #4e64d8;
 }
 
 .state {
   margin: 0;
-  color: #98a6b5;
+  color: #7c8b9f;
 }
 
 .error {
-  color: #e74c3c;
+  color: #d24747;
 }
 
 .empty-block {
   display: grid;
-  justify-items: center;
-  gap: 10px;
-  color: #74879a;
-  padding: 30px 0;
-}
-
-.difficulty {
-  font-weight: 700;
-}
-
-.lv-beginner {
-  color: #e74c3c;
-}
-
-.lv-normal {
-  color: #2e9c52;
-}
-
-.lv-advanced {
-  color: #2d6cdf;
+  gap: 8px;
+  justify-items: start;
 }
 </style>

@@ -6,6 +6,7 @@ import { getAuthUser, isAdminUser } from '@/utils/auth'
 const loading = ref(false)
 const error = ref('')
 const logs = ref([])
+const allLogs = ref([])
 const authUser = ref(getAuthUser())
 const canViewAdmin = ref(isAdminUser())
 
@@ -35,18 +36,28 @@ async function loadLogs() {
   loading.value = true
   error.value = ''
   try {
-    const params = new URLSearchParams()
-    if (filters.value.userId) params.set('userId', filters.value.userId)
-    if (filters.value.behaviorType) params.set('behaviorType', filters.value.behaviorType)
-
-    const query = params.toString()
-    const resp = await apiGet(`/anti-cheat/logs${query ? `?${query}` : ''}`)
-    logs.value = resp.data || []
+    const resp = await apiGet('/anti-cheat/logs')
+    allLogs.value = resp.data || []
+    logs.value = [...allLogs.value]
   } catch (err) {
     error.value = err.message || '加载失败'
   } finally {
     loading.value = false
   }
+}
+
+function applyFilters() {
+  const userId = filters.value.userId ? Number(filters.value.userId) : null
+  const behaviorType = filters.value.behaviorType
+  logs.value = allLogs.value.filter((item) => {
+    const passUser = !userId || Number(item.userId) === userId
+    const passBehavior = !behaviorType || item.behaviorType === behaviorType
+    return passUser && passBehavior
+  })
+}
+
+function refreshLogs() {
+  logs.value = [...allLogs.value]
 }
 
 onMounted(() => {
@@ -67,10 +78,10 @@ onMounted(() => {
         <span>可见性变更 {{ riskSummary.visibility }}</span>
       </div>
 
-      <form class="filters" @submit.prevent="loadLogs">
+      <form class="filters" @submit.prevent="applyFilters">
         <label>
           用户ID
-          <input v-model="filters.userId" type="number" min="1" placeholder="例如 1" />
+          <input v-model="filters.userId" type="number" min="1" placeholder="请输入内容" />
         </label>
         <label>
           行为类型
@@ -79,6 +90,7 @@ onMounted(() => {
           </select>
         </label>
         <button type="submit">查询</button>
+        <button type="button" class="ghost" @click="refreshLogs">刷新</button>
       </form>
 
       <p v-if="loading" class="state">日志加载中...</p>
@@ -177,6 +189,11 @@ button {
 
 .table-wrap {
   overflow: auto;
+}
+
+button.ghost {
+  background: #eef4fd;
+  color: #4d6681;
 }
 
 .log-table {

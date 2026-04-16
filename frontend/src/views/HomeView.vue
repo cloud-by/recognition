@@ -23,6 +23,8 @@ const quickEntries = computed(() => {
 
   if (user?.role === 'ADMIN') {
     menus.push({ title: '管理端', subtitle: '查看系统日志与风险行为', to: '/admin', icon: '⚙️', accent: 'dark' })
+    menus.push({ title: '上传题目', subtitle: '新增题目并配置信息', to: '/admin/problems/create', icon: '📝', accent: 'blue' })
+    menus.push({ title: '管理标签', subtitle: '维护题目标签库', to: '/admin/tags', icon: '🏷️', accent: 'purple' })
   }
 
   return menus

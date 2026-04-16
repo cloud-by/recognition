@@ -3,11 +3,11 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAuthChangeEventName, getAuthUser, setAuthUser } from '@/utils/auth'
 
-  const route = useRoute()
-  const router = useRouter()
-  const user = ref(null)
+const route = useRoute()
+const router = useRouter()
+const user = ref(null)
 
-  const allMenus = [
+const allMenus = [
   { name: '首页', path: '/', icon: '⌂' },
   { name: '题目列表', path: '/problems', icon: '▤' },
   { name: '提交记录', path: '/submissions', icon: '↻' },
@@ -16,22 +16,24 @@ import { getAuthChangeEventName, getAuthUser, setAuthUser } from '@/utils/auth'
   { name: '创建历史', path: '/contests/history', icon: '🗂', managerOnly: true },
   { name: '班级管理', path: '/classes/manage', icon: '🏫', teacherOnly: true },
   { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
-  ]
+  { name: '上传题目', path: '/admin/problems/create', icon: '✚', adminOnly: true },
+  { name: '管理标签', path: '/admin/tags', icon: '🏷', adminOnly: true },
+]
 
-  const menus = computed(() => allMenus.filter((item) => {
+const menus = computed(() => allMenus.filter((item) => {
   if (item.adminOnly) return user.value?.role === 'ADMIN'
   if (item.teacherOnly) return user.value?.role === 'TEACHER'
   if (item.managerOnly) return ['ADMIN', 'TEACHER'].includes(user.value?.role)
   return true
 }))
-  const pageTitle = computed(() => {
+const pageTitle = computed(() => {
   const matched = [...allMenus]
-  .sort((a, b) => b.path.length - a.path.length)
-  .find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)
+    .find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`))
   return matched?.name || '在线评测'
 })
 
-  function refreshUser() {
+function refreshUser() {
   user.value = getAuthUser()
 }
 

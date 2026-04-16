@@ -14,6 +14,8 @@ const router = createRouter({
     { path: '/contests/history', component: () => import('@/views/ContestHistoryView.vue'), meta: { requiresManager: true } },
     { path: '/classes/manage', component: () => import('@/views/ClassManageView.vue'), meta: { requiresTeacher: true } },
     { path: '/admin', component: () => import('@/views/AdminView.vue'), meta: { requiresAdmin: true } },
+    { path: '/admin/problems/create', component: () => import('@/views/ProblemCreateView.vue'), meta: { requiresAdmin: true } },
+    { path: '/admin/tags', component: () => import('@/views/TagManageView.vue'), meta: { requiresAdmin: true } },
     { path: '/login', component: () => import('@/views/LoginView.vue') },
     { path: '/register', component: () => import('@/views/RegisterView.vue') },
   ],

@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/submissions', component: () => import('@/views/SubmissionsView.vue') },
     { path: '/contests', component: () => import('@/views/ContestsView.vue') },
     { path: '/contests/manage', component: () => import('@/views/ContestManageView.vue'), meta: { requiresManager: true } },
+    { path: '/contests/history', component: () => import('@/views/ContestHistoryView.vue'), meta: { requiresManager: true } },
     { path: '/classes/manage', component: () => import('@/views/ClassManageView.vue'), meta: { requiresTeacher: true } },
     { path: '/admin', component: () => import('@/views/AdminView.vue'), meta: { requiresAdmin: true } },
     { path: '/login', component: () => import('@/views/LoginView.vue') },

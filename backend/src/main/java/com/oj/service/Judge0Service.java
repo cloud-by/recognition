@@ -13,10 +13,13 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class Judge0Service {
+    private static final Logger log = LoggerFactory.getLogger(Judge0Service.class);
 
     private final Judge0Properties properties;
     private final ObjectMapper objectMapper;
@@ -53,7 +56,10 @@ public class Judge0Service {
 
             HttpResponse<String> submitResponse = httpClient.send(submitRequest, HttpResponse.BodyHandlers.ofString());
             if (submitResponse.statusCode() < 200 || submitResponse.statusCode() >= 300) {
-                return JudgeResult.error("Judge0提交失败，HTTP " + submitResponse.statusCode());
+                String bodySnippet = abbreviate(submitResponse.body(), 300);
+                log.warn("Judge0 submit failed: status={}, body={}", submitResponse.statusCode(), bodySnippet);
+                return JudgeResult.error("Judge0提交失败，HTTP " + submitResponse.statusCode()
+                        + "，响应: " + bodySnippet);
             }
 
             JsonNode submitJson = objectMapper.readTree(submitResponse.body());
@@ -75,6 +81,8 @@ public class Judge0Service {
                         .build();
                 HttpResponse<String> queryResponse = httpClient.send(queryRequest, HttpResponse.BodyHandlers.ofString());
                 if (queryResponse.statusCode() < 200 || queryResponse.statusCode() >= 300) {
+                    log.warn("Judge0 query failed: status={}, token={}, body={}",
+                            queryResponse.statusCode(), token, abbreviate(queryResponse.body(), 300));
                     continue;
                 }
 
@@ -155,6 +163,16 @@ public class Judge0Service {
             }
         }
         return "";
+    }
+
+    private String abbreviate(String text, int maxLength) {
+        if (text == null) {
+            return "";
+        }
+        if (text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength) + "...";
     }
 
     public record JudgeResult(

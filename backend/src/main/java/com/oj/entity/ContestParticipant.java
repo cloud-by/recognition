@@ -25,6 +25,9 @@ public class ContestParticipant {
     @Column(name = "participate_status", nullable = false, length = 20)
     private ParticipateStatus participateStatus = ParticipateStatus.REGISTERED;
 
+    @Column(name = "last_access_ip", length = 64)
+    private String lastAccessIp;
+
     public ContestParticipant() {
     }
 
@@ -49,5 +52,13 @@ public class ContestParticipant {
 
     public ParticipateStatus getParticipateStatus() {
         return participateStatus;
+    }
+
+    public String getLastAccessIp() {
+        return lastAccessIp;
+    }
+
+    public void setLastAccessIp(String lastAccessIp) {
+        this.lastAccessIp = lastAccessIp;
     }
 }

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { fetchContestDetail, fetchContestList, registerContest } from '@/api/contests'
+import { enterContest, fetchContestDetail, fetchContestList, registerContest } from '@/api/contests'
 import { getAuthUser } from '@/utils/auth'
 
 const user = getAuthUser()
@@ -75,6 +75,22 @@ async function openDetail(item) {
   }
 }
 
+async function doEnter(item) {
+  notice.value = ''
+  error.value = ''
+  try {
+    const resp = await enterContest(item.id, user?.id)
+    if (!resp.success) {
+      error.value = resp.message || '进入比赛失败'
+      return
+    }
+    notice.value = `进入成功（IP：${resp.data.ip || '未知'}）`
+    await openDetail(item)
+  } catch (err) {
+    error.value = err.message || '进入比赛失败'
+  }
+}
+
 onMounted(loadContests)
 </script>
 
@@ -101,6 +117,7 @@ onMounted(loadContests)
           </div>
           <div class="actions">
             <button @click="openDetail(item)">查看题目</button>
+            <button v-if="item.joined" class="primary" @click="doEnter(item)">进入比赛</button>
             <button
               v-if="item.status === 'NOT_STARTED' && !item.joined"
               class="primary"

@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS contest (
     contest_type ENUM('ACM', 'OI', 'IOI', 'PRACTICE') NOT NULL DEFAULT 'ACM' COMMENT '比赛类型',
     ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略',
     freeze_board TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否封榜：0否，1是',
+    allowed_ip_rule VARCHAR(500) DEFAULT NULL COMMENT '正式比赛允许IP规则，多个关键字可用逗号分隔',
     created_by_user_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '创建者用户ID',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -216,6 +217,22 @@ SET @add_created_by_user_id_sql := IF(
 PREPARE stmt_add_created_by_user_id FROM @add_created_by_user_id_sql;
 EXECUTE stmt_add_created_by_user_id;
 DEALLOCATE PREPARE stmt_add_created_by_user_id;
+
+SET @allowed_ip_rule_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'contest'
+      AND COLUMN_NAME = 'allowed_ip_rule'
+);
+SET @add_allowed_ip_rule_sql := IF(
+    @allowed_ip_rule_exists = 0,
+    "ALTER TABLE contest ADD COLUMN allowed_ip_rule VARCHAR(500) NULL COMMENT '正式比赛允许IP规则，多个关键字可用逗号分隔' AFTER freeze_board",
+    'SELECT 1'
+);
+PREPARE stmt_add_allowed_ip_rule FROM @add_allowed_ip_rule_sql;
+EXECUTE stmt_add_allowed_ip_rule;
+DEALLOCATE PREPARE stmt_add_allowed_ip_rule;
 
 
 -- =========================
@@ -288,6 +305,7 @@ CREATE TABLE IF NOT EXISTS contest_participant (
                                                    register_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '报名时间',
                                                    participate_status ENUM('REGISTERED', 'JOINED', 'FINISHED', 'QUIT')
     NOT NULL DEFAULT 'REGISTERED' COMMENT '参赛状态',
+    last_access_ip VARCHAR(64) DEFAULT NULL COMMENT '学生最近一次进入比赛的IP',
 
     PRIMARY KEY (contest_id, user_id),
 
@@ -302,6 +320,19 @@ CREATE TABLE IF NOT EXISTS contest_participant (
     KEY idx_cp_user (user_id),
     KEY idx_cp_status (participate_status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='比赛报名/参赛表';
+
+SET @cp_last_access_ip_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contest_participant' AND COLUMN_NAME = 'last_access_ip'
+);
+SET @add_cp_last_access_ip_sql := IF(
+    @cp_last_access_ip_exists = 0,
+    "ALTER TABLE contest_participant ADD COLUMN last_access_ip VARCHAR(64) NULL COMMENT '学生最近一次进入比赛的IP' AFTER participate_status",
+    'SELECT 1'
+);
+PREPARE stmt_add_cp_last_access_ip FROM @add_cp_last_access_ip_sql;
+EXECUTE stmt_add_cp_last_access_ip;
+DEALLOCATE PREPARE stmt_add_cp_last_access_ip;
 
 USE oj_platform;
 
@@ -318,7 +349,7 @@ DELETE FROM oj_user;
 -- =========================
 -- 1. 用户测试数据
 -- =========================
-REPLACE INTO oj_user (
+INSERT INTO oj_user (
     id, username, password_hash, nickname, role, last_submit_ip, created_at, updated_at
 ) VALUES
       (
@@ -375,9 +406,9 @@ REPLACE INTO oj_user (
 -- =========================
 -- 2. 题目测试数据
 -- =========================
-REPLACE INTO problem (
+INSERT INTO problem (
     id, title, description, input_format, output_format,
-    sample_input, sample_output, difficulty, permission_type, tags, time_limit_ms, memory_limit_mb,
+    sample_input, sample_output, difficulty, time_limit_ms, memory_limit_mb,
     testcase_path, created_at, updated_at
 ) VALUES
       (
@@ -389,8 +420,6 @@ REPLACE INTO problem (
           '1 2',
           '3',
           '入门',
-          'PUBLIC',
-          '数学,模拟',
           1000,
           128,
           '/data/testcases/problem_1/',
@@ -406,8 +435,6 @@ REPLACE INTO problem (
           '5\n1 9 3 7 2',
           '9',
           '普及',
-          'PUBLIC',
-          '数组,基础',
           1000,
           128,
           '/data/testcases/problem_2/',
@@ -423,8 +450,6 @@ REPLACE INTO problem (
           'level',
           'Yes',
           '普及',
-          'LOGIN_REQUIRED',
-          '字符串,双指针',
           1000,
           128,
           '/data/testcases/problem_3/',
@@ -440,8 +465,6 @@ REPLACE INTO problem (
           '6',
           '8',
           '提高',
-          'CONTEST_ONLY',
-          '递归,动态规划',
           2000,
           256,
           '/data/testcases/problem_4/',
@@ -457,8 +480,6 @@ REPLACE INTO problem (
           '{[()]}',
           'Yes',
           '普及',
-          'PUBLIC',
-          '栈,字符串',
           1000,
           128,
           '/data/testcases/problem_5/',
@@ -474,8 +495,6 @@ REPLACE INTO problem (
           '5 3\n1 2 3 4 5\n1 3\n2 5\n4 4',
           '6\n14\n4',
           '普及',
-          'LOGIN_REQUIRED',
-          '前缀和,数组',
           1000,
           256,
           '/data/testcases/problem_6/',
@@ -491,8 +510,6 @@ REPLACE INTO problem (
           '4 5\n1 2 2\n1 3 5\n2 3 1\n2 4 4\n3 4 1',
           '4',
           '提高',
-          'CONTEST_ONLY',
-          '图论,Dijkstra',
           2000,
           256,
           '/data/testcases/problem_7/',
@@ -508,13 +525,41 @@ REPLACE INTO problem (
           '6 7\n1 3 7 7 9 10',
           '3',
           '入门',
-          'PUBLIC',
-          '二分,数组',
           1000,
           128,
           '/data/testcases/problem_8/',
           '2026-04-01 10:50:00',
           '2026-04-01 10:50:00'
+      ),
+      (
+          9,
+          '连通块计数',
+          '给定 n*m 的 0/1 矩阵，统计由 1 组成的四连通块数量。',
+          '第一行 n m，后续 n 行每行 m 个字符（0/1）。',
+          '输出一个整数表示连通块数量。',
+          '3 4\n1100\n0101\n0011',
+          '3',
+          '提高',
+          2000,
+          256,
+          '/data/testcases/problem_9/',
+          '2026-04-01 10:55:00',
+          '2026-04-01 10:55:00'
+      ),
+      (
+          10,
+          '最长上升子序列',
+          '给定长度为 n 的序列，求 LIS 长度。',
+          '第一行 n，第二行 n 个整数。',
+          '输出一个整数。',
+          '8\n10 9 2 5 3 7 101 18',
+          '4',
+          '提高',
+          2000,
+          256,
+          '/data/testcases/problem_10/',
+          '2026-04-01 11:00:00',
+          '2026-04-01 11:00:00'
       );
 
 -- =========================
@@ -546,6 +591,54 @@ INSERT INTO contest (
           2,
           '2026-04-05 12:30:00',
           '2026-04-05 12:30:00'
+      ),
+      (
+          3,
+          '2026 算法训练营周赛 2',
+          '2026-04-14 19:00:00',
+          '2026-04-14 21:00:00',
+          'ACM',
+          'FORMAL',
+          0,
+          2,
+          '2026-04-06 09:00:00',
+          '2026-04-06 09:00:00'
+      ),
+      (
+          4,
+          '2026 程序设计课堂测验',
+          '2026-04-16 08:00:00',
+          '2026-04-16 10:00:00',
+          'OI',
+          'CLASSROOM',
+          0,
+          2,
+          '2026-04-06 10:00:00',
+          '2026-04-06 10:00:00'
+      ),
+      (
+          5,
+          '2026 夏季热身赛',
+          '2026-05-01 13:30:00',
+          '2026-05-01 16:30:00',
+          'IOI',
+          'FORMAL',
+          1,
+          1,
+          '2026-04-07 11:00:00',
+          '2026-04-07 11:00:00'
+      ),
+      (
+          6,
+          '新生入门闯关赛',
+          '2026-04-30 18:00:00',
+          '2026-04-30 20:00:00',
+          'PRACTICE',
+          'CLASSROOM',
+          0,
+          2,
+          '2026-04-07 11:30:00',
+          '2026-04-07 11:30:00'
       );
 
 -- =========================
@@ -556,17 +649,49 @@ INSERT INTO contest_problem (contest_id, problem_id, sort_order) VALUES
                                                                      (1, 2, 2),
                                                                      (1, 3, 3),
                                                                      (2, 2, 1),
-                                                                     (2, 4, 2);
+                                                                     (2, 4, 2),
+                                                                     (2, 5, 3),
+                                                                     (3, 3, 1),
+                                                                     (3, 6, 2),
+                                                                     (3, 7, 3),
+                                                                     (3, 8, 4),
+                                                                     (4, 1, 1),
+                                                                     (4, 5, 2),
+                                                                     (4, 6, 3),
+                                                                     (5, 4, 1),
+                                                                     (5, 7, 2),
+                                                                     (5, 9, 3),
+                                                                     (5, 10, 4),
+                                                                     (6, 1, 1),
+                                                                     (6, 2, 2),
+                                                                     (6, 8, 3);
 
 -- =========================
 -- 5. 比赛报名/参赛测试数据
 -- =========================
+-- 兜底：避免外键报错（若你自行裁剪了上面的用户种子，只保留了 id 1~3）
+INSERT INTO oj_user (id, username, password_hash, nickname, role, last_submit_ip, created_at, updated_at)
+SELECT 4, 'student_wang', '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi', '王同学', 'STUDENT', '10.10.1.22', '2026-04-01 09:12:00', '2026-04-01 09:12:00'
+    WHERE NOT EXISTS (SELECT 1 FROM oj_user WHERE id = 4);
+
+INSERT INTO oj_user (id, username, password_hash, nickname, role, last_submit_ip, created_at, updated_at)
+SELECT 5, 'student_chen', '$2a$10$abcdefghijklmnopqrstuv1234567890abcdefghi', '陈同学', 'STUDENT', '10.10.1.23', '2026-04-01 09:14:00', '2026-04-01 09:14:00'
+    WHERE NOT EXISTS (SELECT 1 FROM oj_user WHERE id = 5);
+
 INSERT INTO contest_participant (contest_id, user_id, register_time, participate_status) VALUES
                                                                                              (1, 2, '2026-04-10 08:00:00', 'REGISTERED'),
                                                                                              (1, 3, '2026-04-10 08:10:00', 'JOINED'),
                                                                                              (1, 4, '2026-04-10 08:20:00', 'FINISHED'),
                                                                                              (2, 2, '2026-04-11 10:00:00', 'JOINED'),
-                                                                                             (2, 5, '2026-04-11 10:05:00', 'REGISTERED');
+                                                                                             (2, 5, '2026-04-11 10:05:00', 'REGISTERED'),
+                                                                                             (3, 3, '2026-04-12 17:00:00', 'FINISHED'),
+                                                                                             (3, 4, '2026-04-12 17:05:00', 'QUIT'),
+                                                                                             (4, 3, '2026-04-15 19:00:00', 'JOINED'),
+                                                                                             (4, 5, '2026-04-15 19:05:00', 'REGISTERED'),
+                                                                                             (5, 2, '2026-04-20 12:00:00', 'REGISTERED'),
+                                                                                             (5, 3, '2026-04-20 12:10:00', 'REGISTERED'),
+                                                                                             (6, 4, '2026-04-21 09:10:00', 'REGISTERED'),
+                                                                                             (6, 5, '2026-04-21 09:20:00', 'REGISTERED');
 
 -- =========================
 -- 6. 提交记录测试数据
@@ -662,6 +787,50 @@ INSERT INTO submission (
           22,
           9216,
           '2026-04-12 10:40:00'
+      ),
+      (
+          9,
+          3,
+          7,
+          '#include <bits/stdc++.h>\nusing namespace std;\nint main(){ios::sync_with_stdio(false);cin.tie(nullptr);int n,m;cin>>n>>m;vector<vector<pair<int,int>>>g(n+1);for(int i=0;i<m;i++){int u,v,w;cin>>u>>v>>w;g[u].push_back({v,w});}const long long INF=4e18;vector<long long>d(n+1,INF);priority_queue<pair<long long,int>,vector<pair<long long,int>>,greater<>>pq;d[1]=0;pq.push({0,1});while(!pq.empty()){auto [dist,u]=pq.top();pq.pop();if(dist!=d[u])continue;for(auto [v,w]:g[u])if(d[v]>dist+w){d[v]=dist+w;pq.push({d[v],v});}}cout<<(d[n]>=INF?-1:d[n]);}',
+          'cpp',
+          'AC',
+          88,
+          12000,
+          '2026-04-13 09:10:00'
+      ),
+      (
+          10,
+          4,
+          6,
+          '#include <bits/stdc++.h>\nusing namespace std;\nint main(){int n,q;cin>>n>>q;vector<long long>a(n+1),pre(n+1);for(int i=1;i<=n;i++){cin>>a[i];pre[i]=pre[i-1]+a[i];}while(q--){int l,r;cin>>l>>r;cout<<pre[r]-pre[l-1]<<\"\\n\";}return 0;}',
+          'cpp',
+          'AC',
+          16,
+          2048,
+          '2026-04-15 09:12:00'
+      ),
+      (
+          11,
+          5,
+          9,
+          '#include <bits/stdc++.h>\nusing namespace std;\nint main(){cout<<42;return 0;}',
+          'cpp',
+          'RE',
+          5,
+          1024,
+          '2026-04-15 09:15:00'
+      ),
+      (
+          12,
+          3,
+          10,
+          '#include <bits/stdc++.h>\nusing namespace std;\nint main(){int n;cin>>n;vector<int>a(n);for(int i=0;i<n;i++)cin>>a[i];vector<int>dp;for(int x:a){auto it=lower_bound(dp.begin(),dp.end(),x);if(it==dp.end())dp.push_back(x);else *it=x;}cout<<dp.size();}',
+          'cpp',
+          'AC',
+          27,
+          4096,
+          '2026-04-15 09:18:00'
       );
 
 -- =========================
@@ -693,14 +862,30 @@ INSERT INTO anti_cheat_log (
           'COPY_PASTE',
           '检测到粘贴行为，粘贴字符数约 320。',
           '2026-04-12 10:31:00'
+      ),
+      (
+          4,
+          3,
+          NULL,
+          'CONTEST_IP_CHANGED',
+          '比赛#3 进入IP从10.10.1.21变化为10.10.1.88',
+          '2026-04-14 19:35:00'
+      ),
+      (
+          5,
+          5,
+          NULL,
+          'OUTSIDE_LAB_IP',
+          '进入正式比赛时IP不在允许范围: 203.100.22.8',
+          '2026-05-01 13:40:00'
       );
 
 -- 可选：重置自增起点，便于后续继续插入
 ALTER TABLE oj_user AUTO_INCREMENT = 6;
-ALTER TABLE problem AUTO_INCREMENT = 9;
-ALTER TABLE contest AUTO_INCREMENT = 3;
-ALTER TABLE submission AUTO_INCREMENT = 9;
-ALTER TABLE anti_cheat_log AUTO_INCREMENT = 4;
+ALTER TABLE problem AUTO_INCREMENT = 11;
+ALTER TABLE contest AUTO_INCREMENT = 7;
+ALTER TABLE submission AUTO_INCREMENT = 13;
+ALTER TABLE anti_cheat_log AUTO_INCREMENT = 6;
 
 -- 检查数据是否插入成功
 SELECT 'oj_user' AS table_name, COUNT(*) AS row_count FROM oj_user

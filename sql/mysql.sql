@@ -135,6 +135,22 @@ EXECUTE stmt_add_tags;
 DEALLOCATE PREPARE stmt_add_tags;
 
 -- =========================
+-- 2.1 题目标签库
+-- =========================
+CREATE TABLE IF NOT EXISTS problem_tag (
+                                           id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '标签ID',
+                                           name VARCHAR(60) NOT NULL COMMENT '标签名称',
+    UNIQUE KEY uk_problem_tag_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='题目标签库';
+
+INSERT IGNORE INTO problem_tag (name) VALUES
+    ('模拟'),
+    ('字符串'),
+    ('数学'),
+    ('贪心'),
+    ('图论');
+
+-- =========================
 -- 3. 提交记录表
 -- =========================
 CREATE TABLE IF NOT EXISTS submission (

@@ -12,37 +12,65 @@ const queryInput = ref('')
 const keyword = ref('')
 const newTag = ref('')
 const tags = ref([])
+const loading = ref(false)
+const feedback = ref('')
 
 const displayedTags = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   if (!text) return tags.value
-  return tags.value.filter((item) => item.toLowerCase().includes(text))
+  return tags.value.filter((item) => item.name.toLowerCase().includes(text))
 })
 
-function refresh() {
-  tags.value = getProblemTags()
+async function refresh() {
+  loading.value = true
+  feedback.value = ''
+  try {
+    tags.value = await getProblemTags()
+  } catch (err) {
+    feedback.value = err.message || '加载标签失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 function search() {
   keyword.value = queryInput.value.trim()
 }
 
-function handleRefresh() {
+async function handleRefresh() {
   keyword.value = ''
-  refresh()
+  queryInput.value = ''
+  await refresh()
 }
 
-function createTag() {
+async function createTag() {
   const value = newTag.value.trim()
   if (!value) return
-  tags.value = addProblemTag(value)
-  newTag.value = ''
-  emit('updated', tags.value)
+  try {
+    loading.value = true
+    feedback.value = ''
+    await addProblemTag(value)
+    newTag.value = ''
+    await refresh()
+    emit('updated', tags.value)
+  } catch (err) {
+    feedback.value = err.message || '添加标签失败'
+  } finally {
+    loading.value = false
+  }
 }
 
-function deleteTag(tag) {
-  tags.value = removeProblemTag(tag)
-  emit('updated', tags.value)
+async function deleteTag(tag) {
+  try {
+    loading.value = true
+    feedback.value = ''
+    tags.value = await removeProblemTag(tag.id)
+    emit('updated', tags.value)
+  } catch (err) {
+    feedback.value = err.message || '删除标签失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 watch(
@@ -67,23 +95,25 @@ watch(
 
       <form class="search-bar" @submit.prevent="search">
         <input v-model="queryInput" type="text" placeholder="请输入内容" />
-        <button type="submit" class="primary">查询</button>
-        <button type="button" class="ghost" @click="handleRefresh">刷新</button>
+        <button type="submit" class="primary" :disabled="loading">查询</button>
+        <button type="button" class="ghost" :disabled="loading" @click="handleRefresh">刷新</button>
       </form>
 
       <form class="add-bar" @submit.prevent="createTag">
         <input v-model="newTag" type="text" placeholder="请输入内容" />
-        <button type="submit" class="primary">添加</button>
+        <button type="submit" class="primary" :disabled="loading">添加</button>
       </form>
 
       <div class="tag-list">
-        <p v-if="!displayedTags.length" class="empty">暂无标签</p>
+        <p v-if="loading" class="empty">加载中...</p>
+        <p v-else-if="!displayedTags.length" class="empty">暂无标签</p>
         <div v-else class="items">
-          <div v-for="tag in displayedTags" :key="tag" class="tag-item">
-            <span>{{ tag }}</span>
-            <button type="button" class="danger" @click="deleteTag(tag)">删除</button>
+          <div v-for="tag in displayedTags" :key="tag.id" class="tag-item">
+            <span>{{ tag.name }}</span>
+            <button type="button" class="danger" :disabled="loading" @click="deleteTag(tag)">删除</button>
           </div>
         </div>
+        <p v-if="feedback" class="feedback">{{ feedback }}</p>
       </div>
     </section>
   </div>
@@ -101,12 +131,13 @@ watch(
 
 .dialog {
   width: min(640px, 92vw);
-  background: #fff;
-  border-radius: 14px;
+  background: linear-gradient(180deg, #fff, #f9fbff);
+  border-radius: 16px;
   border: 1px solid #dbe6f3;
-  padding: 16px;
+  padding: 18px;
   display: grid;
   gap: 12px;
+  box-shadow: 0 18px 40px rgba(23, 49, 79, 0.16);
 }
 
 header {
@@ -154,6 +185,8 @@ button {
 .danger {
   background: #ffe7e7;
   color: #cc3434;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .items {
@@ -165,7 +198,7 @@ button {
 .tag-item {
   border: 1px solid #deebf8;
   border-radius: 999px;
-  padding: 5px 6px 5px 12px;
+  padding: 5px 5px 5px 12px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -175,5 +208,10 @@ button {
 .empty {
   margin: 0;
   color: #7c8ea2;
+}
+
+.feedback {
+  margin: 2px 0 0;
+  color: #c64545;
 }
 </style>

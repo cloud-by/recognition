@@ -16,9 +16,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -104,6 +107,57 @@ public class ProblemController {
         return ApiResponse.ok(problemRepository.save(problem));
     }
 
+    @PutMapping("/{id}")
+    public ApiResponse<Problem> update(@PathVariable Long id, @RequestBody UpdateProblemRequest request) {
+        OjUser editor = userRepository.findById(request.editorUserId()).orElse(null);
+        if (editor == null || !OjUser.Role.ADMIN.name().equals(editor.getRole())) {
+            return ApiResponse.fail("仅管理员可编辑题目");
+        }
+
+        Problem problem = problemRepository.findById(id).orElse(null);
+        if (problem == null) {
+            return ApiResponse.fail("题目不存在");
+        }
+
+        String difficulty = Optional.ofNullable(request.difficulty()).orElse("普及");
+        if (!SUPPORTED_DIFFICULTY.contains(difficulty)) {
+            return ApiResponse.fail("难度仅支持：入门 / 普及 / 提高");
+        }
+
+        problem.setTitle(request.title());
+        problem.setDescription(request.description());
+        problem.setInputFormat(request.inputFormat());
+        problem.setOutputFormat(request.outputFormat());
+        problem.setSampleInput(request.sampleInput());
+        problem.setSampleOutput(request.sampleOutput());
+        problem.setDifficulty(difficulty);
+        problem.setPermissionType(Optional.ofNullable(request.permissionType()).orElse(Problem.PermissionType.PUBLIC));
+        problem.setTags(Optional.ofNullable(request.tags()).orElse(""));
+        problem.setTimeLimitMs(Optional.ofNullable(request.timeLimitMs()).orElse(1000));
+        problem.setMemoryLimitMb(Optional.ofNullable(request.memoryLimitMb()).orElse(256));
+        problem.setTestcasePath(request.testcasePath());
+        return ApiResponse.ok(problemRepository.save(problem));
+    }
+
+    @DeleteMapping("/{id}")
+    @Transactional
+    public ApiResponse<List<Problem>> delete(@PathVariable Long id, @RequestParam Long operatorUserId) {
+        OjUser operator = userRepository.findById(operatorUserId).orElse(null);
+        if (operator == null || !OjUser.Role.ADMIN.name().equals(operator.getRole())) {
+            return ApiResponse.fail("仅管理员可删除题目");
+        }
+
+        Problem problem = problemRepository.findById(id).orElse(null);
+        if (problem == null) {
+            return ApiResponse.fail("题目不存在");
+        }
+
+        problemRepository.delete(problem);
+        problemRepository.flush();
+        problemRepository.compactIdsAfterDelete(id);
+        return ApiResponse.ok(problemRepository.findAll());
+    }
+
     private boolean canViewProblem(Problem problem, OjUser viewer, Long contestId) {
         if (viewer != null && (OjUser.Role.ADMIN.name().equals(viewer.getRole()) || OjUser.Role.TEACHER.name().equals(viewer.getRole()))) {
             return true;
@@ -141,6 +195,22 @@ public class ProblemController {
 
     public record CreateProblemRequest(
             @NotNull Long creatorUserId,
+            @NotBlank String title,
+            @NotBlank String description,
+            String inputFormat,
+            String outputFormat,
+            String sampleInput,
+            String sampleOutput,
+            String difficulty,
+            Problem.PermissionType permissionType,
+            String tags,
+            Integer timeLimitMs,
+            Integer memoryLimitMb,
+            @NotBlank String testcasePath
+    ) {}
+
+    public record UpdateProblemRequest(
+            @NotNull Long editorUserId,
             @NotBlank String title,
             @NotBlank String description,
             String inputFormat,

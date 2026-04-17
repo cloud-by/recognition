@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAuthUser } from '@/utils/auth'
+import { emitOpenTagDialog } from '@/utils/uiEvents'
 
 const router = useRouter()
 const user = getAuthUser()
@@ -24,7 +25,7 @@ const quickEntries = computed(() => {
   if (user?.role === 'ADMIN') {
     menus.push({ title: '管理端', subtitle: '查看系统日志与风险行为', to: '/admin', icon: '⚙️', accent: 'dark' })
     menus.push({ title: '上传题目', subtitle: '新增题目并配置信息', to: '/admin/problems/create', icon: '📝', accent: 'blue' })
-    menus.push({ title: '管理标签', subtitle: '维护题目标签库', to: '/admin/tags', icon: '🏷️', accent: 'purple' })
+    menus.push({ title: '管理标签', subtitle: '维护题目标签库', action: 'open-tag-dialog', icon: '🏷️', accent: 'purple' })
   }
 
   return menus
@@ -52,7 +53,7 @@ const summaryItems = computed(() => {
     <section class="quick-grid">
       <article
         v-for="item in quickEntries"
-        :key="item.to"
+        :key="item.title"
         :class="['quick-card', `accent-${item.accent}`]"
       >
         <div class="card-head">
@@ -62,7 +63,7 @@ const summaryItems = computed(() => {
             <p>{{ item.subtitle }}</p>
           </div>
         </div>
-        <button @click="router.push(item.to)">进入</button>
+        <button @click="item.action === 'open-tag-dialog' ? emitOpenTagDialog() : router.push(item.to)">进入</button>
       </article>
     </section>
   </section>

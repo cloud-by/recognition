@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { apiPost } from '@/api/http'
 import TagManageDialog from '@/components/TagManageDialog.vue'
 import { getAuthUser } from '@/utils/auth'
@@ -14,7 +14,7 @@ const permissionOptions = [
   { label: '比赛可见', value: 'CONTEST_ONLY' },
 ]
 
-const allTags = ref(getProblemTags())
+const allTags = ref([])
 const openTagModal = ref(false)
 const saving = ref(false)
 const feedback = ref({ type: '', text: '' })
@@ -37,8 +37,9 @@ const form = ref({
 const tagText = computed(() => form.value.tags.join(','))
 
 function updateTags(tags) {
-  allTags.value = tags
-  form.value.tags = form.value.tags.filter((item) => tags.includes(item))
+  const names = tags.map((item) => item.name)
+  allTags.value = names
+  form.value.tags = form.value.tags.filter((item) => names.includes(item))
 }
 
 function toggleTag(tag) {
@@ -93,6 +94,13 @@ async function submit() {
     saving.value = false
   }
 }
+
+async function loadTags() {
+  const tags = await getProblemTags()
+  allTags.value = tags.map((item) => item.name)
+}
+
+onMounted(loadTags)
 </script>
 
 <template>

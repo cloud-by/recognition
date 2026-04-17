@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAuthChangeEventName, getAuthUser, setAuthUser } from '@/utils/auth'
+import TagManageDialog from '@/components/TagManageDialog.vue'
+import { getOpenTagDialogEventName } from '@/utils/uiEvents'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,8 +19,8 @@ const allMenus = [
   { name: '班级管理', path: '/classes/manage', icon: '🏫', teacherOnly: true },
   { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
   { name: '上传题目', path: '/admin/problems/create', icon: '✚', adminOnly: true },
-  { name: '管理标签', path: '/admin/tags', icon: '🏷', adminOnly: true },
 ]
+const openTagDialog = ref(false)
 
 const menus = computed(() => allMenus.filter((item) => {
   if (item.adminOnly) return user.value?.role === 'ADMIN'
@@ -47,12 +49,24 @@ onMounted(() => {
   refreshUser()
   window.addEventListener('storage', refreshUser)
   window.addEventListener(getAuthChangeEventName(), refreshUser)
+  window.addEventListener(getOpenTagDialogEventName(), handleOpenTagDialog)
 })
 
 onUnmounted(() => {
   window.removeEventListener('storage', refreshUser)
   window.removeEventListener(getAuthChangeEventName(), refreshUser)
+  window.removeEventListener(getOpenTagDialogEventName(), handleOpenTagDialog)
 })
+
+function handleOpenTagDialog() {
+  openTagDialog.value = true
+}
+
+function handleMenuClick(item, event) {
+  if (item.action !== 'open-tag-dialog') return
+  event.preventDefault()
+  openTagDialog.value = true
+}
 </script>
 
 <template>
@@ -60,7 +74,14 @@ onUnmounted(() => {
     <aside class="sidebar">
       <div class="brand">R</div>
       <nav>
-        <RouterLink v-for="item in menus" :key="item.path" :to="item.path" class="menu-link" :title="item.name">
+        <RouterLink
+          v-for="item in menus"
+          :key="item.path"
+          :to="item.action ? route.path : item.path"
+          class="menu-link"
+          :title="item.name"
+          @click="handleMenuClick(item, $event)"
+        >
           <span class="icon">{{ item.icon }}</span>
           <span class="name">{{ item.name }}</span>
         </RouterLink>
@@ -87,6 +108,7 @@ onUnmounted(() => {
         <slot />
       </main>
     </div>
+    <TagManageDialog :open="openTagDialog" @close="openTagDialog = false" />
   </div>
 </template>
 

@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/anti-cheat/logs")
+@RequestMapping("/anti-cheat/logs")
 public class AntiCheatLogController {
 
     private final AntiCheatLogRepository antiCheatLogRepository;

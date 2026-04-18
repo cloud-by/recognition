@@ -33,27 +33,27 @@ public class Judge0Service {
 
     public JudgeResult judge(String language, String sourceCode, Problem problem) {
         try {
-            Integer languageId = resolveLanguageId(language);
+            Integer languageId = resolveLanguageId(language);   //获取语言对应id，比如c++对应54
             if (languageId == null) {
                 return JudgeResult.error("不支持的语言: " + language);
             }
 
-            String baseUrl = normalizeBaseUrl(properties.getBaseUrl());
-            Map<String, Object> payload = new HashMap<>();
+            String baseUrl = normalizeBaseUrl(properties.getBaseUrl()); //获取judge0的基础url
+            Map<String, Object> payload = new HashMap<>();      //body部分
             payload.put("source_code", sourceCode);
             payload.put("language_id", languageId);
             payload.put("stdin", defaultString(problem.getSampleInput()));
             payload.put("expected_output", defaultString(problem.getSampleOutput()));
             payload.put("cpu_time_limit", Math.max(1, problem.getTimeLimitMs()) / 1000.0);
             payload.put("memory_limit", Math.max(32, problem.getMemoryLimitMb()) * 1024);
-
+            //构造post请求
             HttpRequest submitRequest = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/submissions?base64_encoded=false&wait=false"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                     .timeout(Duration.ofSeconds(8))
                     .build();
-
+            //提交并获得回复
             HttpResponse<String> submitResponse = httpClient.send(submitRequest, HttpResponse.BodyHandlers.ofString());
             if (submitResponse.statusCode() < 200 || submitResponse.statusCode() >= 300) {
                 String bodySnippet = abbreviate(submitResponse.body(), 300);

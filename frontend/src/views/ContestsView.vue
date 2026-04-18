@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { enterContest, fetchContestDetail, fetchContestList, registerContest } from '@/api/contests'
-import { getAuthUser } from '@/utils/auth'
+import { getAuthUser, isManagerUser } from '@/utils/auth'
 
+const router = useRouter()
 const user = getAuthUser()
 const contests = ref([])
 const loading = ref(false)
@@ -26,6 +28,7 @@ const contestStats = computed(() => ({
   running: contests.value.filter((item) => item.status === 'RUNNING').length,
   joined: contests.value.filter((item) => item.joined).length,
 }))
+const isManager = computed(() => isManagerUser())
 
 async function loadContests() {
   loading.value = true
@@ -91,6 +94,14 @@ async function doEnter(item) {
   }
 }
 
+function goCreate() {
+  router.push('/contests/new')
+}
+
+function goEdit(item) {
+  router.push(`/contests/${item.id}/edit`)
+}
+
 onMounted(loadContests)
 </script>
 
@@ -104,6 +115,10 @@ onMounted(loadContests)
     </section>
 
     <section class="panel">
+      <div class="head-row">
+        <h3>比赛列表</h3>
+        <button v-if="isManager" class="primary" @click="goCreate">创建比赛</button>
+      </div>
       <p v-if="notice" class="notice">{{ notice }}</p>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="loading" class="state">正在加载比赛...</p>
@@ -113,9 +128,17 @@ onMounted(loadContests)
           <div>
             <h3>{{ item.title }}</h3>
             <p>比赛时间：{{ item.startTime }} ~ {{ item.endTime }}</p>
-            <p>模式：{{ item.contestType }} ｜题目数：{{ item.problemCount }} ｜状态：{{ statusText[item.status] }}</p>
+            <p>排名：{{ item.rankingPolicy === 'FORMAL' ? '正式比赛' : '课堂模式' }} ｜题目数：{{ item.problemCount }} ｜状态：{{ statusText[item.status] }}</p>
+            <p v-if="item.contestContent" class="desc">简介：{{ item.contestContent }}</p>
           </div>
           <div class="actions">
+            <button
+              v-if="isManager && item.status === 'NOT_STARTED'"
+              class="ghost"
+              @click="goEdit(item)"
+            >
+              编辑比赛
+            </button>
             <button @click="openDetail(item)">查看题目</button>
             <button v-if="item.joined" class="primary" @click="doEnter(item)">进入比赛</button>
             <button
@@ -139,6 +162,7 @@ onMounted(loadContests)
     <p v-else-if="detailError" class="error">{{ detailError }}</p>
     <template v-else-if="activeContest">
       <p>{{ activeContest.title }}（{{ statusText[activeContest.status] }}）</p>
+      <p v-if="activeContest.contestContent">比赛介绍：{{ activeContest.contestContent }}</p>
       <p>已报名人数：{{ activeContest.participantCount }}</p>
       <ul>
         <li v-for="problem in activeContest.problems" :key="problem.problemId">
@@ -175,6 +199,14 @@ onMounted(loadContests)
   border: 1px solid #e6ecf3;
   border-radius: 12px;
   padding: 16px;
+}
+
+.head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .list {
@@ -221,10 +253,16 @@ button.primary {
   border-color: transparent;
 }
 
+button.ghost {
+  background: #eef4ff;
+  color: #426082;
+}
+
 .error { color: #d93025; }
 .notice { color: #1f7a3e; }
 .joined { color: #1f7a3e; }
 .empty { color: #738293; }
 .state { margin: 0; color: #738293; }
+.desc { max-width: 760px; }
 .dialog { border: 1px solid #c8d8ea; border-radius: 10px; min-width: 420px; }
 </style>

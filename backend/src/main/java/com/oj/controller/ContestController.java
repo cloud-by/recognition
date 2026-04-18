@@ -1,21 +1,23 @@
 package com.oj.controller;
 
 import com.oj.dto.ApiResponse;
+import com.oj.entity.AntiCheatLog;
 import com.oj.entity.Contest;
 import com.oj.entity.ContestParticipant;
+import com.oj.entity.ContestParticipantId;
 import com.oj.entity.ContestProblem;
 import com.oj.entity.OjUser;
 import com.oj.entity.Problem;
+import com.oj.repository.AntiCheatLogRepository;
 import com.oj.repository.ContestParticipantRepository;
 import com.oj.repository.ContestProblemRepository;
 import com.oj.repository.ContestRepository;
 import com.oj.repository.OjUserRepository;
 import com.oj.repository.ProblemRepository;
-import com.oj.repository.AntiCheatLogRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -83,9 +85,9 @@ public class ContestController {
         List<ContestItemResponse> data = contests.stream().map(contest -> new ContestItemResponse(
                 contest.getId(),
                 contest.getTitle(),
+                contest.getContestContent(),
                 contest.getStartTime(),
                 contest.getEndTime(),
-                contest.getContestType(),
                 contest.getRankingPolicy(),
                 contest.getFreezeBoard(),
                 contest.getAllowedIpRule(),
@@ -121,9 +123,9 @@ public class ContestController {
         return ApiResponse.ok(new ContestDetailResponse(
                 contest.getId(),
                 contest.getTitle(),
+                contest.getContestContent(),
                 contest.getStartTime(),
                 contest.getEndTime(),
-                contest.getContestType(),
                 contest.getRankingPolicy(),
                 contest.getFreezeBoard(),
                 contest.getAllowedIpRule(),
@@ -151,12 +153,12 @@ public class ContestController {
 
         Contest contest = new Contest();
         contest.setTitle(request.title().trim());
+        contest.setContestContent(normalizeContent(request.contestContent()));
         contest.setStartTime(request.startTime());
         contest.setEndTime(request.endTime());
-        contest.setContestType(request.contestType() == null ? Contest.ContestType.ACM : request.contestType());
         contest.setRankingPolicy(request.rankingPolicy() == null ? Contest.RankingPolicy.FORMAL : request.rankingPolicy());
         contest.setFreezeBoard(Boolean.TRUE.equals(request.freezeBoard()));
-        contest.setAllowedIpRule(normalizeIpRule(request.allowedIpRule()));
+        contest.setAllowedIpRule(normalizeAllowedIpRuleByRanking(request.allowedIpRule(), contest.getRankingPolicy()));
         contest.setCreatedByUserId(request.creatorUserId());
         Contest saved = contestRepository.save(contest);
 
@@ -174,7 +176,8 @@ public class ContestController {
         if (contest == null) {
             return ApiResponse.fail("比赛不存在");
         }
-        if (getContestStatus(contest, LocalDateTime.now()).equals("RUNNING") || getContestStatus(contest, LocalDateTime.now()).equals("FINISHED")) {
+        String currentStatus = getContestStatus(contest, LocalDateTime.now());
+        if ("RUNNING".equals(currentStatus) || "FINISHED".equals(currentStatus)) {
             return ApiResponse.fail("仅未开始比赛可编辑");
         }
         OjUser operator = ojUserRepository.findById(request.operatorUserId()).orElse(null);
@@ -195,12 +198,12 @@ public class ContestController {
         }
 
         contest.setTitle(request.title().trim());
+        contest.setContestContent(normalizeContent(request.contestContent()));
         contest.setStartTime(request.startTime());
         contest.setEndTime(request.endTime());
-        contest.setContestType(request.contestType() == null ? Contest.ContestType.ACM : request.contestType());
         contest.setRankingPolicy(request.rankingPolicy() == null ? Contest.RankingPolicy.FORMAL : request.rankingPolicy());
         contest.setFreezeBoard(Boolean.TRUE.equals(request.freezeBoard()));
-        contest.setAllowedIpRule(normalizeIpRule(request.allowedIpRule()));
+        contest.setAllowedIpRule(normalizeAllowedIpRuleByRanking(request.allowedIpRule(), contest.getRankingPolicy()));
         contestRepository.save(contest);
 
         List<ContestProblem> existing = contestProblemRepository.findByIdContestIdOrderBySortOrderAsc(id);
@@ -246,7 +249,7 @@ public class ContestController {
         if (user == null) {
             return ApiResponse.fail("用户不存在");
         }
-        ContestParticipant participant = contestParticipantRepository.findById(new com.oj.entity.ContestParticipantId(id, request.userId())).orElse(null);
+        ContestParticipant participant = contestParticipantRepository.findById(new ContestParticipantId(id, request.userId())).orElse(null);
         if (participant == null) {
             return ApiResponse.fail("请先报名比赛");
         }
@@ -283,9 +286,9 @@ public class ContestController {
     public record CreateContestRequest(
             @NotNull Long creatorUserId,
             @NotBlank String title,
+            String contestContent,
             @NotNull LocalDateTime startTime,
             @NotNull LocalDateTime endTime,
-            Contest.ContestType contestType,
             Contest.RankingPolicy rankingPolicy,
             Boolean freezeBoard,
             String allowedIpRule,
@@ -295,9 +298,9 @@ public class ContestController {
     public record UpdateContestRequest(
             @NotNull Long operatorUserId,
             @NotBlank String title,
+            String contestContent,
             @NotNull LocalDateTime startTime,
             @NotNull LocalDateTime endTime,
-            Contest.ContestType contestType,
             Contest.RankingPolicy rankingPolicy,
             Boolean freezeBoard,
             String allowedIpRule,
@@ -310,16 +313,15 @@ public class ContestController {
     public record ProblemOptionResponse(Long id, String title, String difficulty) {}
 
     public record ContestItemResponse(
-            Long id, String title, LocalDateTime startTime, LocalDateTime endTime,
-            Contest.ContestType contestType, Contest.RankingPolicy rankingPolicy,
-            Boolean freezeBoard, String allowedIpRule, String status, Integer problemCount, Boolean joined, Long createdByUserId
+            Long id, String title, String contestContent, LocalDateTime startTime, LocalDateTime endTime,
+            Contest.RankingPolicy rankingPolicy, Boolean freezeBoard, String allowedIpRule,
+            String status, Integer problemCount, Boolean joined, Long createdByUserId
     ) {}
 
     public record ContestDetailResponse(
-            Long id, String title, LocalDateTime startTime, LocalDateTime endTime,
-            Contest.ContestType contestType, Contest.RankingPolicy rankingPolicy,
-            Boolean freezeBoard, String allowedIpRule, String status, Integer participantCount, Long createdByUserId,
-            List<ContestProblemResponse> problems
+            Long id, String title, String contestContent, LocalDateTime startTime, LocalDateTime endTime,
+            Contest.RankingPolicy rankingPolicy, Boolean freezeBoard, String allowedIpRule,
+            String status, Integer participantCount, Long createdByUserId, List<ContestProblemResponse> problems
     ) {}
 
     private String normalizeIpRule(String raw) {
@@ -332,6 +334,21 @@ public class ContestController {
                 .distinct()
                 .toList();
         return parts.isEmpty() ? null : String.join(",", parts);
+    }
+
+    private String normalizeAllowedIpRuleByRanking(String raw, Contest.RankingPolicy rankingPolicy) {
+        if (rankingPolicy != Contest.RankingPolicy.FORMAL) {
+            return null;
+        }
+        return normalizeIpRule(raw);
+    }
+
+    private String normalizeContent(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String text = raw.trim();
+        return text.isBlank() ? null : text;
     }
 
     private boolean ipAllowedByRule(String ip, String rule) {
@@ -357,7 +374,7 @@ public class ContestController {
     }
 
     private void saveContestCheatLog(OjUser user, String behaviorType, String detailInfo) {
-        com.oj.entity.AntiCheatLog log = new com.oj.entity.AntiCheatLog();
+        AntiCheatLog log = new AntiCheatLog();
         log.setUser(user);
         log.setBehaviorType(behaviorType);
         log.setDetailInfo(detailInfo);

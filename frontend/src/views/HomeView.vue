@@ -15,7 +15,7 @@ const quickEntries = computed(() => {
   ]
 
   if (['ADMIN', 'TEACHER'].includes(user?.role)) {
-    menus.push({ title: '比赛管理', subtitle: '创建比赛和配置题目', to: '/contests/manage', icon: '🛠️', accent: 'purple' })
+    menus.push({ title: '创建比赛', subtitle: '在比赛大厅中创建和编辑比赛', to: '/contests', icon: '🛠️', accent: 'purple' })
   }
 
   if (user?.role === 'TEACHER') {

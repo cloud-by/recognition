@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS contest (
                                        title VARCHAR(200) NOT NULL COMMENT '比赛标题',
     start_time DATETIME NOT NULL COMMENT '开始时间',
     end_time DATETIME NOT NULL COMMENT '结束时间',
-    contest_type ENUM('ACM', 'OI', 'IOI', 'PRACTICE') NOT NULL DEFAULT 'ACM' COMMENT '比赛类型',
+    contest_content TEXT NULL COMMENT '比赛介绍内容',
     ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略',
     freeze_board TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否封榜：0否，1是',
     allowed_ip_rule VARCHAR(500) DEFAULT NULL COMMENT '正式比赛允许IP规则，多个关键字可用逗号分隔',
@@ -199,6 +199,39 @@ CREATE TABLE IF NOT EXISTS contest (
 
     KEY idx_contest_time (start_time, end_time)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='比赛表';
+
+
+SET @contest_content_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'contest'
+      AND COLUMN_NAME = 'contest_content'
+);
+SET @add_contest_content_sql := IF(
+    @contest_content_exists = 0,
+    "ALTER TABLE contest ADD COLUMN contest_content TEXT NULL COMMENT '比赛介绍内容' AFTER title",
+    'SELECT 1'
+);
+PREPARE stmt_add_contest_content FROM @add_contest_content_sql;
+EXECUTE stmt_add_contest_content;
+DEALLOCATE PREPARE stmt_add_contest_content;
+
+SET @contest_type_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'contest'
+      AND COLUMN_NAME = 'contest_type'
+);
+SET @drop_contest_type_sql := IF(
+    @contest_type_exists > 0,
+    "ALTER TABLE contest DROP COLUMN contest_type",
+    'SELECT 1'
+);
+PREPARE stmt_drop_contest_type FROM @drop_contest_type_sql;
+EXECUTE stmt_drop_contest_type;
+DEALLOCATE PREPARE stmt_drop_contest_type;
 
 SET @ranking_policy_exists := (
     SELECT COUNT(*)
@@ -210,7 +243,7 @@ SET @ranking_policy_exists := (
 
 SET @add_ranking_policy_sql := IF(
     @ranking_policy_exists = 0,
-    "ALTER TABLE contest ADD COLUMN ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略' AFTER contest_type",
+    "ALTER TABLE contest ADD COLUMN ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略' AFTER contest_content",
     'SELECT 1'
 );
 PREPARE stmt_add_ranking_policy FROM @add_ranking_policy_sql;
@@ -582,16 +615,17 @@ INSERT INTO problem (
 -- 3. 比赛测试数据
 -- =========================
 INSERT INTO contest (
-    id, title, start_time, end_time, contest_type, ranking_policy, freeze_board, created_by_user_id, created_at, updated_at
+    id, title, contest_content, start_time, end_time, ranking_policy, freeze_board, allowed_ip_rule, created_by_user_id, created_at, updated_at
 ) VALUES
       (
           1,
           '2026 春季新生选拔赛',
+          '新生选拔正式赛。',
           '2026-04-20 19:00:00',
           '2026-04-20 21:00:00',
-          'ACM',
           'FORMAL',
           1,
+          '10.10.',
           2,
           '2026-04-05 12:00:00',
           '2026-04-05 12:00:00'
@@ -599,11 +633,12 @@ INSERT INTO contest (
       (
           2,
           '每周练习赛 Week 1',
+          '每周课堂练习赛。',
           '2026-04-18 14:00:00',
           '2026-04-18 16:00:00',
-          'PRACTICE',
           'CLASSROOM',
           0,
+          NULL,
           2,
           '2026-04-05 12:30:00',
           '2026-04-05 12:30:00'
@@ -611,11 +646,12 @@ INSERT INTO contest (
       (
           3,
           '2026 算法训练营周赛 2',
+          '训练营周赛正式场。',
           '2026-04-14 19:00:00',
           '2026-04-14 21:00:00',
-          'ACM',
           'FORMAL',
           0,
+          '192.168.',
           2,
           '2026-04-06 09:00:00',
           '2026-04-06 09:00:00'
@@ -623,11 +659,12 @@ INSERT INTO contest (
       (
           4,
           '2026 程序设计课堂测验',
+          '程序设计课程课堂测验。',
           '2026-04-16 08:00:00',
           '2026-04-16 10:00:00',
-          'OI',
           'CLASSROOM',
           0,
+          NULL,
           2,
           '2026-04-06 10:00:00',
           '2026-04-06 10:00:00'
@@ -635,11 +672,12 @@ INSERT INTO contest (
       (
           5,
           '2026 夏季热身赛',
+          '暑期热身正式赛。',
           '2026-05-01 13:30:00',
           '2026-05-01 16:30:00',
-          'IOI',
           'FORMAL',
           1,
+          '10.10.,192.168.20',
           1,
           '2026-04-07 11:00:00',
           '2026-04-07 11:00:00'
@@ -647,15 +685,17 @@ INSERT INTO contest (
       (
           6,
           '新生入门闯关赛',
+          '新生课堂闯关训练。',
           '2026-04-30 18:00:00',
           '2026-04-30 20:00:00',
-          'PRACTICE',
           'CLASSROOM',
           0,
+          NULL,
           2,
           '2026-04-07 11:30:00',
           '2026-04-07 11:30:00'
       );
+-- 注意：上面第 6 条比赛数据必须完整保留 created_at / updated_at，避免脚本截断导致后续 INSERT 语法报错。
 
 -- =========================
 -- 4. 比赛题目关联测试数据

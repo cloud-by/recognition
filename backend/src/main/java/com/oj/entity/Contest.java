@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 @Table(name = "contest")
 public class Contest {
 
-    public enum ContestType { ACM, OI, IOI, PRACTICE }
     public enum RankingPolicy { FORMAL, CLASSROOM }
 
     @Id
@@ -26,15 +25,14 @@ public class Contest {
     @Column(nullable = false, length = 200)
     private String title;
 
+    @Column(name = "contest_content", columnDefinition = "TEXT")
+    private String contestContent;
+
     @Column(name = "start_time", nullable = false)
     private LocalDateTime startTime;
 
     @Column(name = "end_time", nullable = false)
     private LocalDateTime endTime;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "contest_type", nullable = false, length = 20)
-    private ContestType contestType = ContestType.ACM;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "ranking_policy", nullable = false, length = 20)
@@ -70,12 +68,12 @@ public class Contest {
     public Long getId() { return id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+    public String getContestContent() { return contestContent; }
+    public void setContestContent(String contestContent) { this.contestContent = contestContent; }
     public LocalDateTime getStartTime() { return startTime; }
     public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
     public LocalDateTime getEndTime() { return endTime; }
     public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
-    public ContestType getContestType() { return contestType; }
-    public void setContestType(ContestType contestType) { this.contestType = contestType; }
     public RankingPolicy getRankingPolicy() { return rankingPolicy; }
     public void setRankingPolicy(RankingPolicy rankingPolicy) { this.rankingPolicy = rankingPolicy; }
     public Boolean getFreezeBoard() { return freezeBoard; }

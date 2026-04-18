@@ -14,8 +14,6 @@ const allMenus = [
   { name: '题目列表', path: '/problems', icon: '▤' },
   { name: '提交记录', path: '/submissions', icon: '↻' },
   { name: '比赛大厅', path: '/contests', icon: '🏁' },
-  { name: '比赛管理', path: '/contests/manage', icon: '🛠', managerOnly: true },
-  { name: '创建历史', path: '/contests/history', icon: '🗂', managerOnly: true },
   { name: '班级管理', path: '/classes/manage', icon: '🏫', teacherOnly: true },
   { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
   { name: '上传题目', path: '/admin/problems/create', icon: '✚', adminOnly: true },

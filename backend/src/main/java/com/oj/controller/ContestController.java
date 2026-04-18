@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/contests")
+@RequestMapping("/contests")
 public class ContestController {
 
     private final ContestRepository contestRepository;

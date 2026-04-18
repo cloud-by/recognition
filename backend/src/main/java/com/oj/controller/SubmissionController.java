@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/submissions")
+@RequestMapping("/submissions")
 public class SubmissionController {
 
     private final SubmissionRepository submissionRepository;
@@ -69,50 +69,53 @@ public class SubmissionController {
 
     @PostMapping
     public ApiResponse<?> submit(@RequestBody SubmitRequest request, HttpServletRequest httpRequest) {
+        //分别根据用户id和题目id获取用户和题目
         Optional<OjUser> user = userRepository.findById(request.userId());
         Optional<Problem> problem = problemRepository.findById(request.problemId());
 
         if (user.isEmpty() || problem.isEmpty()) {
             return ApiResponse.fail("用户或题目不存在");
         }
-
+        //获取语言并存为小写
         String language = request.language().toLowerCase();
         if (!List.of("c", "cpp").contains(language)) {
             return ApiResponse.fail("当前仅支持 C / C++ 提交");
         }
 
-        String submitIp = resolveIp(httpRequest);
+        String submitIp = resolveIp(httpRequest);   //解析获得对方IPV6地址，如0:0:0:0:0:0:0:1
+        //创建当前提交记录
         Submission submission = new Submission();
         submission.setUser(user.get());
         submission.setProblem(problem.get());
         submission.setSourceCode(request.sourceCode());
         submission.setLanguage(language);
-        submission.setJudgeStatus(Submission.JudgeStatus.PENDING);
+        submission.setJudgeStatus(Submission.JudgeStatus.PENDING);  //记录为待定
         submission.setSubmitTime(LocalDateTime.now());
         submission.setSubmitIp(submitIp);
 
-        submission.setJudgeStatus(Submission.JudgeStatus.JUDGING);
-        Submission saved = submissionRepository.save(submission);
-        doIpCheatCheck(user.get(), saved, submitIp);
-
+        submission.setJudgeStatus(Submission.JudgeStatus.JUDGING);  //将记录改写为判题中
+        Submission saved = submissionRepository.save(submission);   //将当前创建的记录添加到数据库中，并获得赋值id的数据
+        doIpCheatCheck(user.get(), saved, submitIp);    //检查IP地址是否合规
+        //判题并获得判题结果
         Judge0Service.JudgeResult judgeResult = judge0Service.judge(language, request.sourceCode(), problem.get());
+        //更新判题结果
         saved.setJudgeStatus(judgeResult.judgeStatus());
         saved.setRuntimeMs(judgeResult.runtimeMs());
         saved.setMemoryKb(judgeResult.memoryKb());
         saved.setJudgeToken(judgeResult.token());
         saved.setJudgeDetail(judgeResult.detail());
         submissionRepository.save(saved);
-
+        //返回结果
         Map<String, Object> resp = Map.of(
-                "submissionId", saved.getId(),
-                "judgeStatus", saved.getJudgeStatus(),
-                "runtimeMs", Optional.ofNullable(saved.getRuntimeMs()).orElse(0),
-                "memoryKb", Optional.ofNullable(saved.getMemoryKb()).orElse(0),
-                "judgeDetail", Optional.ofNullable(saved.getJudgeDetail()).orElse(""),
-                "judgeToken", Optional.ofNullable(saved.getJudgeToken()).orElse(""),
-                "rawStatus", judgeResult.rawStatus(),
-                "message", judgeResult.success() ? "Judge0评测完成" : "Judge0评测失败，已标记为SE",
-                "submitIp", submitIp
+                "submissionId", saved.getId(),           // 提交记录ID
+                "judgeStatus", saved.getJudgeStatus(),    // 评测状态（AC/WA/TLE等）
+                "runtimeMs", Optional.ofNullable(saved.getRuntimeMs()).orElse(0),  // 运行时间（毫秒）
+                "memoryKb", Optional.ofNullable(saved.getMemoryKb()).orElse(0),    // 内存使用（KB）
+                "judgeDetail", Optional.ofNullable(saved.getJudgeDetail()).orElse(""), // 评测详情
+                "judgeToken", Optional.ofNullable(saved.getJudgeToken()).orElse(""),   // Judge0令牌
+                "rawStatus", judgeResult.rawStatus(),     // Judge0原始状态描述
+                "message", judgeResult.success() ? "Judge0评测完成" : "Judge0评测失败，已标记为SE", // 提示消息
+                "submitIp", submitIp                      // 提交IP
         );
         return ApiResponse.ok(resp);
     }

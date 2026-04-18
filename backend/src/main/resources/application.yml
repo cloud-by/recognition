@@ -1,12 +1,13 @@
 server:
   port: 8080
+  servlet:
+    context-path: /api  # 所有接口自动加上 /api 前缀
 
 spring:
   application:
     name: backend
-
   datasource:
-    url: jdbc:mysql://139.9.114.118:3306/oj_platform?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    url: jdbc:mysql://139.9.114.118:3306/oj_platform?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
     username: liuyi1
     password: Hhh123456
     driver-class-name: com.mysql.cj.jdbc.Driver

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/classes")
+@RequestMapping("/classes")
 public class TeachingClassController {
 
     private final TeachingClassRepository classRepository;

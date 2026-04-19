@@ -78,8 +78,8 @@ public class SubmissionController {
         }
         //获取语言并存为小写
         String language = request.language().toLowerCase();
-        if (!List.of("c", "cpp").contains(language)) {
-            return ApiResponse.fail("当前仅支持 C / C++ 提交");
+        if (!List.of("c", "cpp", "c++", "java", "python").contains(language)) {
+            return ApiResponse.fail("当前仅支持 C / C++ / java / python 提交");
         }
 
         String submitIp = resolveIp(httpRequest);   //解析获得对方IPV6地址，如0:0:0:0:0:0:0:1

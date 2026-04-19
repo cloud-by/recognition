@@ -254,17 +254,17 @@ public class ContestController {
             return ApiResponse.fail("请先报名比赛");
         }
         String currentIp = resolveIp(httpRequest);
-        if (contest.getRankingPolicy() == Contest.RankingPolicy.FORMAL && OjUser.Role.STUDENT.name().equals(user.getRole())) {
-            if (!ipAllowedByRule(currentIp, contest.getAllowedIpRule())) {
-                return ApiResponse.fail("当前IP不在正式比赛允许范围内");
-            }
-            if (participant.getLastAccessIp() != null && !participant.getLastAccessIp().isBlank()
-                    && !participant.getLastAccessIp().equals(currentIp)) {
-                saveContestCheatLog(user, "CONTEST_IP_CHANGED",
-                        "比赛#" + id + " 进入IP从" + participant.getLastAccessIp() + "变化为" + currentIp);
-            }
-            participant.setLastAccessIp(currentIp);
-        }
+//        if (contest.getRankingPolicy() == Contest.RankingPolicy.FORMAL && OjUser.Role.STUDENT.name().equals(user.getRole())) {
+//            if (!ipAllowedByRule(currentIp, contest.getAllowedIpRule())) {
+//                return ApiResponse.fail("当前IP不在正式比赛允许范围内");
+//            }
+//            if (participant.getLastAccessIp() != null && !participant.getLastAccessIp().isBlank()
+//                    && !participant.getLastAccessIp().equals(currentIp)) {
+//                saveContestCheatLog(user, "CONTEST_IP_CHANGED",
+//                        "比赛#" + id + " 进入IP从" + participant.getLastAccessIp() + "变化为" + currentIp);
+//            }
+//            participant.setLastAccessIp(currentIp);
+//        }
         contestParticipantRepository.save(participant);
         return ApiResponse.ok(Map.of("contestId", id, "ip", currentIp, "allowed", true));
     }

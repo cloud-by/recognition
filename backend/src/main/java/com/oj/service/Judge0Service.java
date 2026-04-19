@@ -53,6 +53,11 @@ public class Judge0Service {
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                     .timeout(Duration.ofSeconds(8))
                     .build();
+            System.out.println("=== HTTP请求详情 ===");
+            System.out.println("URL: " + submitRequest.uri());
+            System.out.println("Method: " + submitRequest.method());
+            System.out.println("Headers: " + submitRequest.headers().map());
+            System.out.println("Body: " + objectMapper.writeValueAsString(payload));
             //提交并获得回复
             HttpResponse<String> submitResponse = httpClient.send(submitRequest, HttpResponse.BodyHandlers.ofString());
             if (submitResponse.statusCode() < 200 || submitResponse.statusCode() >= 300) {
@@ -124,6 +129,8 @@ public class Judge0Service {
         return switch (normalized) {
             case "c" -> 50;
             case "cpp", "c++" -> 54;
+            case "java" -> 62;
+            case "python" -> 71;
             default -> null;
         };
     }

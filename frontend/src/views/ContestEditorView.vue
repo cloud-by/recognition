@@ -159,7 +159,10 @@ onMounted(async () => {
 <template>
   <section class="editor-page">
     <header class="head-row">
-      <h2>{{ pageTitle }}</h2>
+      <div>
+        <p class="eyebrow">{{ pageMode === 'training' ? 'Classroom' : 'Contest' }}</p>
+        <h2>{{ pageTitle }}</h2>
+      </div>
       <button class="ghost" type="button" @click="backToHall">返回比赛大厅</button>
     </header>
 
@@ -168,43 +171,218 @@ onMounted(async () => {
     <p v-if="pageLoading" class="empty">加载中...</p>
 
     <form v-else class="form" @submit.prevent="submit">
-      <label>{{ modeLabel }}名称<input v-model="form.title" required maxlength="200" /></label>
-      <label>
-        {{ modeLabel }}内容（用于介绍）
-        <textarea v-model="form.contestContent" rows="4" maxlength="5000" placeholder="请输入介绍、规则或注意事项"></textarea>
-      </label>
-
-      <div class="row">
-        <label>开始时间<input v-model="form.startTime" type="datetime-local" required /></label>
-        <label>结束时间<input v-model="form.endTime" type="datetime-local" required /></label>
-      </div>
-
-      <div class="row">
+      <section class="card">
+        <h3>基础信息</h3>
+        <label>{{ modeLabel }}名称<input v-model="form.title" required maxlength="200" /></label>
         <label>
-          模式
-          <input :value="lockedRankingPolicy === 'FORMAL' ? '正式比赛' : '课堂训练'" readonly />
+          {{ modeLabel }}内容（用于介绍）
+          <textarea v-model="form.contestContent" rows="4" maxlength="5000" placeholder="请输入介绍、规则或注意事项"></textarea>
         </label>
-        <label class="check"><input v-model="form.freezeBoard" type="checkbox" />启用封榜</label>
-      </div>
+      </section>
 
-      <label v-if="showIpRule">
-        正式比赛IP限制（可选，多个规则逗号分隔）
-        <input v-model="form.allowedIpRule" placeholder="如 10.10.,192.168.20" />
-      </label>
+      <section class="card">
+        <h3>时间与规则</h3>
+        <div class="row">
+          <label>开始时间<input v-model="form.startTime" type="datetime-local" required /></label>
+          <label>结束时间<input v-model="form.endTime" type="datetime-local" required /></label>
+        </div>
 
-      <label>
-        题目搜索
-        <input v-model="problemKeyword" placeholder="按关键词/ID/难度搜索" />
-      </label>
-      <div class="problems">
-        <label v-for="p in filteredProblems" :key="p.id" class="problem-option">
-          <input v-model="form.problemIds" :value="p.id" type="checkbox" />
-          #{{ p.id }} {{ p.title }}（{{ p.difficulty }}）
+        <div class="row">
+          <label>
+            模式
+            <input :value="lockedRankingPolicy === 'FORMAL' ? '正式比赛' : '课堂训练'" readonly />
+          </label>
+          <label class="check"><input v-model="form.freezeBoard" type="checkbox" />启用封榜</label>
+        </div>
+
+        <label v-if="showIpRule">
+          正式比赛IP限制（可选，多个规则逗号分隔）
+          <input v-model="form.allowedIpRule" placeholder="如 10.10.,192.168.20" />
         </label>
-      </div>
-      <p class="selected">已选 {{ form.problemIds.length }} 题：{{ form.problemIds.join(', ') || '暂无' }}</p>
+      </section>
 
-      <button :disabled="loading || !form.problemIds.length" type="submit">{{ loading ? '提交中...' : submitText }}</button>
+      <section class="card">
+        <h3>题目选择</h3>
+        <label>
+          题目搜索
+          <input v-model="problemKeyword" placeholder="按关键词/ID/难度搜索" />
+        </label>
+        <div class="problems">
+          <label v-for="p in filteredProblems" :key="p.id" class="problem-option">
+            <input v-model="form.problemIds" :value="p.id" type="checkbox" />
+            #{{ p.id }} {{ p.title }}（{{ p.difficulty }}）
+          </label>
+        </div>
+        <p class="selected">已选 {{ form.problemIds.length }} 题：{{ form.problemIds.join(', ') || '暂无' }}</p>
+      </section>
+
+      <button class="submit-btn" :disabled="loading || !form.problemIds.length" type="submit">{{ loading ? '提交中...' : submitText }}</button>
     </form>
   </section>
 </template>
+
+<style scoped>
+.editor-page {
+  max-width: 1120px;
+  margin: 28px auto;
+  padding: 0 18px 32px;
+}
+
+.head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+h2 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.card h3 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #fff;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.check {
+  justify-content: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.check input {
+  width: auto;
+  margin-right: 6px;
+}
+
+.problems {
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fcfdff;
+}
+
+.problem-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.problem-option:last-child {
+  margin-bottom: 0;
+}
+
+.problem-option input {
+  width: auto;
+}
+
+.selected,
+.ok,
+.error,
+.empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.selected { background: #eff6ff; color: #1e3a8a; }
+.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; margin-bottom: 12px; }
+.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; margin-bottom: 12px; }
+.empty { background: #f9fafb; color: #4b5563; border: 1px solid #e5e7eb; margin-bottom: 12px; }
+
+.submit-btn {
+  justify-self: start;
+  min-width: 180px;
+  padding: 11px 20px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.26);
+}
+
+.submit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.ghost {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .row { grid-template-columns: 1fr; }
+  .head-row { flex-direction: column; align-items: flex-start; }
+  h2 { font-size: 24px; }
+}
+</style>

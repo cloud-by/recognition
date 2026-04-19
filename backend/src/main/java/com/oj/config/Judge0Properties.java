@@ -8,6 +8,7 @@ public class Judge0Properties {
     private String baseUrl = "http://139.9.114.118:2358";
     private int pollIntervalMs = 800;
     private int maxPollCount = 25;
+    private int maxWaitSeconds = 30;
 
     public String getBaseUrl() {
         return baseUrl;

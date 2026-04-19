@@ -29,3 +29,4 @@ judge0:
   base-url: http://139.9.114.118:2358
   poll-interval-ms: 800
   max-poll-count: 25
+  max-wait-seconds: 30

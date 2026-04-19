@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oj.config.Judge0Properties;
 import com.oj.entity.Problem;
 import com.oj.entity.Submission;
+import com.oj.entity.SubmissionTestPoint;
+import com.oj.repository.SubmissionTestPointRepository;
 import com.oj.tools.FileUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -24,16 +27,18 @@ public class Judge0Service {
     private final Judge0Properties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final SubmissionTestPointRepository submissionTestPointRepository;
 
-    public Judge0Service(Judge0Properties properties, ObjectMapper objectMapper) {
+    public Judge0Service(Judge0Properties properties, ObjectMapper objectMapper, SubmissionTestPointRepository submissionTestPointRepository) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.submissionTestPointRepository = submissionTestPointRepository;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(6))
                 .build();
     }
 
-    public JudgeResult judge(String language, String sourceCode, Problem problem) {
+    public JudgeResult judge(String language, String sourceCode, Problem problem, Submission submission) {
         try {
             Integer languageId = resolveLanguageId(language);
             if (languageId == null) {
@@ -56,15 +61,15 @@ public class Judge0Service {
                 String input = testData.getInput(i);
                 String expectedOutput = testData.getOutput(i);
 
-                Map<String, Object> submission = new HashMap<>();
-                submission.put("language_id", languageId);
-                submission.put("source_code", sourceCode);
-                submission.put("stdin", input == null ? "" : input);
-                submission.put("expected_output", expectedOutput == null ? "" : expectedOutput);
-                submission.put("cpu_time_limit", Math.max(1, problem.getTimeLimitMs()) / 1000.0);
-                submission.put("memory_limit", Math.max(32, problem.getMemoryLimitMb()) * 1024);
+                Map<String, Object> submissionMap = new HashMap<>();
+                submissionMap.put("language_id", languageId);
+                submissionMap.put("source_code", sourceCode);
+                submissionMap.put("stdin", input == null ? "" : input);
+                submissionMap.put("expected_output", expectedOutput == null ? "" : expectedOutput);
+                submissionMap.put("cpu_time_limit", Math.max(1, problem.getTimeLimitMs()) / 1000.0);
+                submissionMap.put("memory_limit", Math.max(32, problem.getMemoryLimitMb()) * 1024);
 
-                submissionsList.add(submission);
+                submissionsList.add(submissionMap);
             }
 
             // 包装在submissions字段中
@@ -118,8 +123,10 @@ public class Judge0Service {
                 return JudgeResult.error("获取判题结果超时");
             }
 
-            // 6. 分析结果
-            return analyzeResults(resultsNode, testCount);
+            // 6. 分析结果并保存测试点
+            JudgeResult judgeResult = analyzeResultsAndSaveTestPoints(resultsNode, testCount, testData, submission);
+
+            return judgeResult;
 
         } catch (Exception ex) {
             log.error("Judge0批量判题调用异常", ex);
@@ -203,9 +210,10 @@ public class Judge0Service {
     }
 
     /**
-     * 分析判题结果
+     * 分析判题结果并保存测试点
      */
-    private JudgeResult analyzeResults(JsonNode responseNode, int testCount) {
+    private JudgeResult analyzeResultsAndSaveTestPoints(JsonNode responseNode, int testCount,
+                                                        FileUtil.TestData testData, Submission submission) {
         // 如果传入的是包含 submissions 字段的对象，提取数组
         JsonNode resultsNode;
         if (responseNode.has("submissions")) {
@@ -223,6 +231,9 @@ public class Judge0Service {
         String firstToken = null;
 
         log.info("开始分析结果，共{}个测试用例", resultsNode.size());
+
+        // 用于保存所有测试点
+        List<SubmissionTestPoint> testPoints = new ArrayList<>();
 
         for (int i = 0; i < resultsNode.size(); i++) {
             JsonNode result = resultsNode.get(i);
@@ -246,6 +257,22 @@ public class Judge0Service {
 
             log.info("测试用例 {} - 状态: {} ({})", i + 1, statusDescription, statusId);
 
+            // 创建 SubmissionTestPoint 实体
+            SubmissionTestPoint testPoint = new SubmissionTestPoint();
+            testPoint.setSubmission(submission);
+            testPoint.setTestPointId(i + 1);
+            testPoint.setJudgeStatus(judgeStatus);
+            testPoint.setRuntimeMs(runtimeMs);
+            testPoint.setMemoryKb(memoryKb);
+            testPoint.setStdout(result.path("stdout").asText(""));
+            testPoint.setExpectedOutput(testData.getOutput(i));
+            testPoint.setStderr(result.path("stderr").asText(""));
+            testPoint.setCompileOutput(result.path("compile_output").asText(""));
+            testPoint.setJudge0Token(result.path("token").asText(""));
+            testPoint.setCreatedAt(LocalDateTime.now());
+
+            testPoints.add(testPoint);
+
             if (judgeStatus == Submission.JudgeStatus.AC) {
                 passedCount++;
                 log.info("测试用例 {} 通过", i + 1);
@@ -264,6 +291,14 @@ public class Judge0Service {
                     firstFailedDetail = String.format("测试用例 %d 失败 [%s]: %s", i + 1, statusDescription, detail);
                 }
             }
+        }
+
+        // 批量保存所有测试点
+        try {
+            submissionTestPointRepository.saveAll(testPoints);
+            log.info("成功保存 {} 个测试点结果", testPoints.size());
+        } catch (Exception e) {
+            log.error("保存测试点结果失败", e);
         }
 
         boolean allPassed = (passedCount == testCount);

@@ -97,7 +97,7 @@ public class SubmissionController {
         Submission saved = submissionRepository.save(submission);   //将当前创建的记录添加到数据库中，并获得赋值id的数据
         doIpCheatCheck(user.get(), saved, submitIp);    //检查IP地址是否合规
         //判题并获得判题结果
-        Judge0Service.JudgeResult judgeResult = judge0Service.judge(language, request.sourceCode(), problem.get());
+        Judge0Service.JudgeResult judgeResult = judge0Service.judge(language, request.sourceCode(), problem.get(),submission);
         //更新判题结果
         saved.setJudgeStatus(judgeResult.judgeStatus());
         saved.setRuntimeMs(judgeResult.runtimeMs());

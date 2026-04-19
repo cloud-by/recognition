@@ -15,6 +15,10 @@ const error = ref('')
 const problems = ref([])
 const problemKeyword = ref('')
 
+const pageMode = computed(() => route.meta.mode === 'training' ? 'training' : 'contest')
+const modeLabel = computed(() => pageMode.value === 'training' ? '课堂训练' : '比赛')
+const lockedRankingPolicy = computed(() => pageMode.value === 'training' ? 'CLASSROOM' : 'FORMAL')
+
 const form = reactive({
   title: '',
   contestContent: '',
@@ -27,8 +31,8 @@ const form = reactive({
 })
 
 const isEdit = computed(() => Boolean(route.params.id))
-const pageTitle = computed(() => (isEdit.value ? '编辑比赛（仅未开始）' : '创建比赛'))
-const submitText = computed(() => (isEdit.value ? '保存修改' : '创建比赛'))
+const pageTitle = computed(() => (isEdit.value ? `编辑${modeLabel.value}（仅未开始）` : `创建${modeLabel.value}`))
+const submitText = computed(() => (isEdit.value ? '保存修改' : `创建${modeLabel.value}`))
 const showIpRule = computed(() => form.rankingPolicy === 'FORMAL')
 
 const filteredProblems = computed(() => {
@@ -50,7 +54,7 @@ function resetForm() {
     contestContent: '',
     startTime: '',
     endTime: '',
-    rankingPolicy: 'FORMAL',
+    rankingPolicy: lockedRankingPolicy.value,
     freezeBoard: false,
     allowedIpRule: '',
     problemIds: [],
@@ -63,17 +67,24 @@ async function loadBaseData() {
 }
 
 async function loadContestForEdit() {
-  if (!isEdit.value) return
+  if (!isEdit.value) {
+    form.rankingPolicy = lockedRankingPolicy.value
+    return
+  }
   pageLoading.value = true
   try {
-    const resp = await fetchContestDetail(route.params.id)
+    const resp = await fetchContestDetail(route.params.id, user?.id)
     if (!resp.success) {
-      error.value = resp.message || '加载比赛失败'
+      error.value = resp.message || `加载${modeLabel.value}失败`
       return
     }
     const data = resp.data
     if (data.status !== 'NOT_STARTED') {
-      error.value = '仅未开始比赛可编辑'
+      error.value = `仅未开始${modeLabel.value}可编辑`
+      return
+    }
+    if (data.rankingPolicy !== lockedRankingPolicy.value) {
+      error.value = `当前页面仅支持${modeLabel.value}编辑`
       return
     }
     Object.assign(form, {
@@ -87,7 +98,7 @@ async function loadContestForEdit() {
       problemIds: (data.problems || []).map((item) => item.problemId),
     })
   } catch (err) {
-    error.value = err.message || '加载比赛失败'
+    error.value = err.message || `加载${modeLabel.value}失败`
   } finally {
     pageLoading.value = false
   }
@@ -103,7 +114,7 @@ async function submit() {
       contestContent: form.contestContent,
       startTime: form.startTime,
       endTime: form.endTime,
-      rankingPolicy: form.rankingPolicy,
+      rankingPolicy: lockedRankingPolicy.value,
       freezeBoard: form.freezeBoard,
       allowedIpRule: showIpRule.value ? form.allowedIpRule : '',
       problemIds: [...new Set(form.problemIds)].sort((a, b) => a - b),
@@ -114,18 +125,18 @@ async function submit() {
       : await createContest({ creatorUserId: user?.id, ...payload })
 
     if (!resp.success) {
-      error.value = resp.message || `${isEdit.value ? '更新' : '创建'}比赛失败`
+      error.value = resp.message || `${isEdit.value ? '更新' : '创建'}${modeLabel.value}失败`
       return
     }
 
-    message.value = `${isEdit.value ? '比赛更新成功' : '比赛创建成功'}：${resp.data.title}`
+    message.value = `${isEdit.value ? modeLabel.value + '更新成功' : modeLabel.value + '创建成功'}：${resp.data.title}`
     if (isEdit.value) {
       setTimeout(() => router.push('/contests'), 500)
     } else {
       resetForm()
     }
   } catch (err) {
-    error.value = err.message || `${isEdit.value ? '更新' : '创建'}比赛失败`
+    error.value = err.message || `${isEdit.value ? '更新' : '创建'}${modeLabel.value}失败`
   } finally {
     loading.value = false
   }
@@ -157,10 +168,10 @@ onMounted(async () => {
     <p v-if="pageLoading" class="empty">加载中...</p>
 
     <form v-else class="form" @submit.prevent="submit">
-      <label>比赛名称<input v-model="form.title" required maxlength="200" /></label>
+      <label>{{ modeLabel }}名称<input v-model="form.title" required maxlength="200" /></label>
       <label>
-        比赛内容（用于介绍比赛）
-        <textarea v-model="form.contestContent" rows="4" maxlength="5000" placeholder="请输入比赛介绍、规则或注意事项"></textarea>
+        {{ modeLabel }}内容（用于介绍）
+        <textarea v-model="form.contestContent" rows="4" maxlength="5000" placeholder="请输入介绍、规则或注意事项"></textarea>
       </label>
 
       <div class="row">
@@ -170,11 +181,8 @@ onMounted(async () => {
 
       <div class="row">
         <label>
-          排名策略
-          <select v-model="form.rankingPolicy">
-            <option value="FORMAL">正式比赛（含罚时）</option>
-            <option value="CLASSROOM">课堂模式（不计罚时）</option>
-          </select>
+          模式
+          <input :value="lockedRankingPolicy === 'FORMAL' ? '正式比赛' : '课堂训练'" readonly />
         </label>
         <label class="check"><input v-model="form.freezeBoard" type="checkbox" />启用封榜</label>
       </div>
@@ -200,20 +208,3 @@ onMounted(async () => {
     </form>
   </section>
 </template>
-
-<style scoped>
-.editor-page { max-width: 1080px; margin: 24px auto; padding: 20px; background: #fff; border: 1px solid #e6ecf3; border-radius: 12px; }
-.head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
-.form { display: grid; gap: 12px; }
-label { display: grid; gap: 6px; color: #5b6978; }
-input, select, textarea { border: 1px solid #cedaea; border-radius: 8px; padding: 8px 10px; font: inherit; }
-.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.check { display: flex; align-items: center; gap: 8px; }
-.problems { max-height: 340px; overflow: auto; border: 1px solid #d9e5f1; border-radius: 8px; padding: 8px; display: grid; gap: 4px; }
-.problem-option { display: flex; align-items: center; gap: 8px; }
-button { width: fit-content; border: 0; background: #2d8fee; color: #fff; border-radius: 8px; padding: 9px 14px; cursor: pointer; }
-button.ghost { background: #eef4ff; color: #426082; }
-.ok { color: #1f7a3e; }
-.error { color: #d93025; }
-.empty, .selected { color: #738293; margin: 0; }
-</style>

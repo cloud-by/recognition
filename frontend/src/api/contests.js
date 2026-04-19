@@ -5,8 +5,13 @@ export function fetchContestList(viewerUserId) {
   return apiGet(`/contests${query}`)
 }
 
-export function fetchContestDetail(id) {
-  return apiGet(`/contests/${id}`)
+export function fetchContestDetail(id, viewerUserId) {
+  const query = viewerUserId ? `?viewerUserId=${viewerUserId}` : ''
+  return apiGet(`/contests/${id}${query}`)
+}
+
+export function fetchContestArena(id, viewerUserId) {
+  return apiGet(`/contests/${id}/arena?viewerUserId=${viewerUserId}`)
 }
 
 export function fetchContestProblemOptions() {

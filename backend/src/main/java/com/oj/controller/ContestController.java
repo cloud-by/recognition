@@ -8,19 +8,23 @@ import com.oj.entity.ContestParticipantId;
 import com.oj.entity.ContestProblem;
 import com.oj.entity.OjUser;
 import com.oj.entity.Problem;
+import com.oj.entity.Submission;
 import com.oj.repository.AntiCheatLogRepository;
 import com.oj.repository.ContestParticipantRepository;
 import com.oj.repository.ContestProblemRepository;
 import com.oj.repository.ContestRepository;
 import com.oj.repository.OjUserRepository;
 import com.oj.repository.ProblemRepository;
+import com.oj.repository.SubmissionRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,12 +43,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/contests")
 public class ContestController {
 
+    private static final long ENTER_WINDOW_MINUTES = 5;
+
     private final ContestRepository contestRepository;
     private final ProblemRepository problemRepository;
     private final OjUserRepository ojUserRepository;
     private final ContestProblemRepository contestProblemRepository;
     private final ContestParticipantRepository contestParticipantRepository;
     private final AntiCheatLogRepository antiCheatLogRepository;
+    private final SubmissionRepository submissionRepository;
 
     public ContestController(
             ContestRepository contestRepository,
@@ -52,7 +59,8 @@ public class ContestController {
             OjUserRepository ojUserRepository,
             ContestProblemRepository contestProblemRepository,
             ContestParticipantRepository contestParticipantRepository,
-            AntiCheatLogRepository antiCheatLogRepository
+            AntiCheatLogRepository antiCheatLogRepository,
+            SubmissionRepository submissionRepository
     ) {
         this.contestRepository = contestRepository;
         this.problemRepository = problemRepository;
@@ -60,6 +68,7 @@ public class ContestController {
         this.contestProblemRepository = contestProblemRepository;
         this.contestParticipantRepository = contestParticipantRepository;
         this.antiCheatLogRepository = antiCheatLogRepository;
+        this.submissionRepository = submissionRepository;
     }
 
     @GetMapping
@@ -76,49 +85,48 @@ public class ContestController {
 
         final Set<Long> joinedContestIds = viewerUserId == null
                 ? Set.of()
-                : contestParticipantRepository.findAll().stream()
-                .filter(cp -> cp.getId().getUserId().equals(viewerUserId))
+                : contestParticipantRepository.findByIdUserId(viewerUserId).stream()
                 .map(cp -> cp.getId().getContestId())
                 .collect(Collectors.toSet());
 
         LocalDateTime now = LocalDateTime.now();
-        List<ContestItemResponse> data = contests.stream().map(contest -> new ContestItemResponse(
-                contest.getId(),
-                contest.getTitle(),
-                contest.getContestContent(),
-                contest.getStartTime(),
-                contest.getEndTime(),
-                contest.getRankingPolicy(),
-                contest.getFreezeBoard(),
-                contest.getAllowedIpRule(),
-                getContestStatus(contest, now),
-                problemCountMap.getOrDefault(contest.getId(), 0L).intValue(),
-                joinedContestIds.contains(contest.getId()),
-                contest.getCreatedByUserId()
-        )).toList();
+        List<ContestItemResponse> data = contests.stream().map(contest -> {
+            LocalDateTime enterOpenTime = contest.getStartTime().minusMinutes(ENTER_WINDOW_MINUTES);
+            boolean canEnter = joinedContestIds.contains(contest.getId()) && !now.isBefore(enterOpenTime) && now.isBefore(contest.getEndTime());
+            return new ContestItemResponse(
+                    contest.getId(),
+                    contest.getTitle(),
+                    contest.getContestContent(),
+                    contest.getStartTime(),
+                    contest.getEndTime(),
+                    enterOpenTime,
+                    contest.getRankingPolicy(),
+                    contest.getFreezeBoard(),
+                    contest.getAllowedIpRule(),
+                    getContestStatus(contest, now),
+                    problemCountMap.getOrDefault(contest.getId(), 0L).intValue(),
+                    joinedContestIds.contains(contest.getId()),
+                    canEnter,
+                    contest.getCreatedByUserId()
+            );
+        }).toList();
         return ApiResponse.ok(data);
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<?> detail(@PathVariable Long id) {
+    public ApiResponse<?> detail(@PathVariable Long id, @RequestParam(required = false) Long viewerUserId) {
         Contest contest = contestRepository.findById(id).orElse(null);
         if (contest == null) {
             return ApiResponse.fail("比赛不存在");
         }
 
-        List<ContestProblem> linked = contestProblemRepository.findByIdContestIdOrderBySortOrderAsc(id);
-        List<Long> problemIds = linked.stream().map(cp -> cp.getId().getProblemId()).toList();
-        Map<Long, Problem> problemMap = problemRepository.findAllById(problemIds).stream()
-                .collect(Collectors.toMap(Problem::getId, p -> p));
-        List<ContestProblemResponse> problems = linked.stream().map(item -> {
-            Problem p = problemMap.get(item.getId().getProblemId());
-            return new ContestProblemResponse(
-                    item.getId().getProblemId(),
-                    p == null ? "题目已删除" : p.getTitle(),
-                    item.getSortOrder(),
-                    p == null ? "未知" : p.getDifficulty()
-            );
-        }).sorted(Comparator.comparing(ContestProblemResponse::sortOrder)).toList();
+        LocalDateTime now = LocalDateTime.now();
+        OjUser viewer = viewerUserId == null ? null : ojUserRepository.findById(viewerUserId).orElse(null);
+        boolean joined = viewer != null && contestParticipantRepository.existsByIdContestIdAndIdUserId(id, viewer.getId());
+        boolean problemVisible = canViewContestProblems(contest, viewer, joined, now);
+        boolean canEnter = joined && !now.isBefore(contest.getStartTime().minusMinutes(ENTER_WINDOW_MINUTES)) && now.isBefore(contest.getEndTime());
+
+        List<ContestProblemResponse> problems = problemVisible ? loadContestProblems(id) : List.of();
 
         return ApiResponse.ok(new ContestDetailResponse(
                 contest.getId(),
@@ -126,13 +134,81 @@ public class ContestController {
                 contest.getContestContent(),
                 contest.getStartTime(),
                 contest.getEndTime(),
+                contest.getStartTime().minusMinutes(ENTER_WINDOW_MINUTES),
                 contest.getRankingPolicy(),
                 contest.getFreezeBoard(),
                 contest.getAllowedIpRule(),
-                getContestStatus(contest, LocalDateTime.now()),
+                getContestStatus(contest, now),
                 contestParticipantRepository.findByIdContestId(id).size(),
                 contest.getCreatedByUserId(),
+                joined,
+                problemVisible,
+                canEnter,
                 problems
+        ));
+    }
+
+    @GetMapping("/{id}/arena")
+    public ApiResponse<?> arena(@PathVariable Long id, @RequestParam Long viewerUserId) {
+        Contest contest = contestRepository.findById(id).orElse(null);
+        if (contest == null) {
+            return ApiResponse.fail("比赛不存在");
+        }
+        OjUser viewer = ojUserRepository.findById(viewerUserId).orElse(null);
+        if (viewer == null) {
+            return ApiResponse.fail("用户不存在");
+        }
+        boolean joined = contestParticipantRepository.existsByIdContestIdAndIdUserId(id, viewerUserId);
+        boolean isManager = OjUser.Role.ADMIN.name().equals(viewer.getRole()) || OjUser.Role.TEACHER.name().equals(viewer.getRole());
+        if (!joined && !isManager) {
+            return ApiResponse.fail("请先报名比赛");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(contest.getStartTime().minusMinutes(ENTER_WINDOW_MINUTES))) {
+            return ApiResponse.fail("仅比赛开始前5分钟内可进入比赛页面");
+        }
+
+        List<ContestProblemResponse> problems = loadContestProblems(id);
+        List<Long> problemIds = problems.stream().map(ContestProblemResponse::problemId).toList();
+        List<ContestParticipant> participants = contestParticipantRepository.findByIdContestId(id);
+        Set<Long> participantIds = participants.stream().map(item -> item.getId().getUserId()).collect(Collectors.toSet());
+        Map<Long, String> userNameMap = ojUserRepository.findAllById(participantIds).stream()
+                .collect(Collectors.toMap(OjUser::getId, item -> Optional.ofNullable(item.getNickname()).filter(v -> !v.isBlank()).orElse(item.getUsername())));
+
+        List<Submission> submissions = problemIds.isEmpty()
+                ? List.of()
+                : submissionRepository.findByProblemIdInAndSubmitTimeBetweenOrderBySubmitTimeDesc(problemIds, contest.getStartTime(), contest.getEndTime())
+                .stream()
+                .filter(item -> participantIds.contains(item.getUser().getId()))
+                .toList();
+
+        List<ContestSubmissionResponse> recentSubmissions = submissions.stream()
+                .limit(80)
+                .map(item -> new ContestSubmissionResponse(
+                        item.getId(),
+                        item.getUser().getId(),
+                        userNameMap.getOrDefault(item.getUser().getId(), "未知用户"),
+                        item.getProblem().getId(),
+                        item.getJudgeStatus().name(),
+                        item.getLanguage(),
+                        item.getRuntimeMs(),
+                        item.getMemoryKb(),
+                        item.getSubmitTime()
+                )).toList();
+
+        List<ContestRankRowResponse> leaderboard = buildLeaderboard(contest, problems, participants, submissions, userNameMap);
+
+        return ApiResponse.ok(new ContestArenaResponse(
+                contest.getId(),
+                contest.getTitle(),
+                contest.getContestContent(),
+                contest.getStartTime(),
+                contest.getEndTime(),
+                getContestStatus(contest, now),
+                problems,
+                recentSubmissions,
+                leaderboard
         ));
     }
 
@@ -167,7 +243,7 @@ public class ContestController {
                 .toList();
         contestProblemRepository.saveAll(links);
 
-        return detail(saved.getId());
+        return detail(saved.getId(), request.creatorUserId());
     }
 
     @PutMapping("/{id}")
@@ -214,7 +290,7 @@ public class ContestController {
         }
         contestProblemRepository.saveAll(links);
 
-        return detail(id);
+        return detail(id, request.operatorUserId());
     }
 
     @PostMapping("/{id}/register")
@@ -253,18 +329,27 @@ public class ContestController {
         if (participant == null) {
             return ApiResponse.fail("请先报名比赛");
         }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isAfter(contest.getEndTime())) {
+            return ApiResponse.fail("比赛已结束");
+        }
+        if (now.isBefore(contest.getStartTime().minusMinutes(ENTER_WINDOW_MINUTES))) {
+            return ApiResponse.fail("比赛开始前5分钟内才可进入比赛");
+        }
+
         String currentIp = resolveIp(httpRequest);
-//        if (contest.getRankingPolicy() == Contest.RankingPolicy.FORMAL && OjUser.Role.STUDENT.name().equals(user.getRole())) {
-//            if (!ipAllowedByRule(currentIp, contest.getAllowedIpRule())) {
-//                return ApiResponse.fail("当前IP不在正式比赛允许范围内");
-//            }
-//            if (participant.getLastAccessIp() != null && !participant.getLastAccessIp().isBlank()
-//                    && !participant.getLastAccessIp().equals(currentIp)) {
-//                saveContestCheatLog(user, "CONTEST_IP_CHANGED",
-//                        "比赛#" + id + " 进入IP从" + participant.getLastAccessIp() + "变化为" + currentIp);
-//            }
-//            participant.setLastAccessIp(currentIp);
-//        }
+        if (contest.getRankingPolicy() == Contest.RankingPolicy.FORMAL && OjUser.Role.STUDENT.name().equals(user.getRole())) {
+            if (!ipAllowedByRule(currentIp, contest.getAllowedIpRule())) {
+                return ApiResponse.fail("当前IP不在正式比赛允许范围内");
+            }
+            if (participant.getLastAccessIp() != null && !participant.getLastAccessIp().isBlank()
+                    && !participant.getLastAccessIp().equals(currentIp)) {
+                saveContestCheatLog(user, "CONTEST_IP_CHANGED",
+                        "比赛#" + id + " 进入IP从" + participant.getLastAccessIp() + "变化为" + currentIp);
+            }
+            participant.setLastAccessIp(currentIp);
+        }
         contestParticipantRepository.save(participant);
         return ApiResponse.ok(Map.of("contestId", id, "ip", currentIp, "allowed", true));
     }
@@ -277,10 +362,164 @@ public class ContestController {
                 .toList());
     }
 
+    private boolean canViewContestProblems(Contest contest, OjUser viewer, boolean joined, LocalDateTime now) {
+        if (viewer != null && (OjUser.Role.ADMIN.name().equals(viewer.getRole()) || OjUser.Role.TEACHER.name().equals(viewer.getRole()))) {
+            return true;
+        }
+        if (!joined) {
+            return false;
+        }
+        return !now.isBefore(contest.getStartTime().minusMinutes(ENTER_WINDOW_MINUTES));
+    }
+
+    private List<ContestProblemResponse> loadContestProblems(Long contestId) {
+        List<ContestProblem> linked = contestProblemRepository.findByIdContestIdOrderBySortOrderAsc(contestId);
+        List<Long> problemIds = linked.stream().map(cp -> cp.getId().getProblemId()).toList();
+        Map<Long, Problem> problemMap = problemRepository.findAllById(problemIds).stream()
+                .collect(Collectors.toMap(Problem::getId, p -> p));
+        return linked.stream().map(item -> {
+            Problem p = problemMap.get(item.getId().getProblemId());
+            return new ContestProblemResponse(
+                    item.getId().getProblemId(),
+                    p == null ? "题目已删除" : p.getTitle(),
+                    item.getSortOrder(),
+                    p == null ? "未知" : p.getDifficulty()
+            );
+        }).sorted(Comparator.comparing(ContestProblemResponse::sortOrder)).toList();
+    }
+
+    private List<ContestRankRowResponse> buildLeaderboard(
+            Contest contest,
+            List<ContestProblemResponse> problems,
+            List<ContestParticipant> participants,
+            List<Submission> submissions,
+            Map<Long, String> userNameMap
+    ) {
+        Map<Long, Map<Long, ProblemStat>> scoreboard = new HashMap<>();
+        submissions.stream()
+                .sorted(Comparator.comparing(Submission::getSubmitTime))
+                .forEach(item -> {
+                    Map<Long, ProblemStat> userBoard = scoreboard.computeIfAbsent(item.getUser().getId(), k -> new HashMap<>());
+                    ProblemStat stat = userBoard.computeIfAbsent(item.getProblem().getId(), k -> new ProblemStat());
+                    if (stat.solved) {
+                        return;
+                    }
+                    stat.submitCount++;
+                    if (item.getJudgeStatus() == Submission.JudgeStatus.AC) {
+                        stat.solved = true;
+                        stat.firstAcTime = item.getSubmitTime();
+                    } else {
+                        stat.wrongBeforeAc++;
+                    }
+                });
+
+        List<ContestRankRowResponse> rows = participants.stream().map(participant -> {
+                    Long userId = participant.getId().getUserId();
+                    Map<Long, ProblemStat> stats = scoreboard.getOrDefault(userId, Map.of());
+                    int solved = 0;
+                    int penalty = 0;
+                    int totalSubmit = 0;
+                    List<String> problemStates = new ArrayList<>();
+                    for (ContestProblemResponse problem : problems) {
+                        ProblemStat stat = stats.get(problem.problemId());
+                        if (stat == null) {
+                            problemStates.add("-");
+                            continue;
+                        }
+                        totalSubmit += stat.submitCount;
+                        if (stat.solved && stat.firstAcTime != null) {
+                            solved++;
+                            long acMinutes = Duration.between(contest.getStartTime(), stat.firstAcTime).toMinutes();
+                            int problemPenalty = (int) Math.max(0, acMinutes) + stat.wrongBeforeAc * 20;
+                            penalty += problemPenalty;
+                            problemStates.add("AC " + acMinutes + "m");
+                        } else {
+                            problemStates.add("+" + stat.submitCount);
+                        }
+                    }
+                    return new ContestRankRowResponse(
+                            userId,
+                            userNameMap.getOrDefault(userId, "未知用户"),
+                            solved,
+                            penalty,
+                            totalSubmit,
+                            problemStates
+                    );
+                }).sorted(Comparator
+                        .comparing(ContestRankRowResponse::solved).reversed()
+                        .thenComparing(ContestRankRowResponse::penalty)
+                        .thenComparing(ContestRankRowResponse::userId))
+                .toList();
+
+        List<ContestRankRowResponse> ranked = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            ContestRankRowResponse row = rows.get(i);
+            ranked.add(new ContestRankRowResponse(
+                    row.userId(),
+                    row.nickname(),
+                    row.solved(),
+                    row.penalty(),
+                    row.submitCount(),
+                    row.problemStates(),
+                    i + 1
+            ));
+        }
+        return ranked;
+    }
+
     private String getContestStatus(Contest contest, LocalDateTime now) {
         if (now.isBefore(contest.getStartTime())) return "NOT_STARTED";
         if (now.isAfter(contest.getEndTime())) return "FINISHED";
         return "RUNNING";
+    }
+
+    private String normalizeContent(String content) {
+        if (content == null) return null;
+        String trimmed = content.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeAllowedIpRuleByRanking(String rule, Contest.RankingPolicy rankingPolicy) {
+        if (rankingPolicy == Contest.RankingPolicy.CLASSROOM) {
+            return null;
+        }
+        if (rule == null) return null;
+        String normalized = rule.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String resolveIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return Optional.ofNullable(request.getRemoteAddr()).orElse("");
+    }
+
+    private boolean ipAllowedByRule(String ip, String allowedIpRule) {
+        if (allowedIpRule == null || allowedIpRule.isBlank()) {
+            return true;
+        }
+        return List.of(allowedIpRule.split(",")).stream()
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .anyMatch(ip::startsWith);
+    }
+
+    private void saveContestCheatLog(OjUser user, String type, String detail) {
+        AntiCheatLog log = new AntiCheatLog();
+        log.setUser(user);
+        log.setBehaviorType(type);
+        log.setDetailInfo(detail);
+        log.setOccurredTime(LocalDateTime.now());
+        antiCheatLogRepository.save(log);
+    }
+
+    private static class ProblemStat {
+        int submitCount;
+        int wrongBeforeAc;
+        boolean solved;
+        LocalDateTime firstAcTime;
     }
 
     public record CreateContestRequest(
@@ -314,71 +553,66 @@ public class ContestController {
 
     public record ContestItemResponse(
             Long id, String title, String contestContent, LocalDateTime startTime, LocalDateTime endTime,
+            LocalDateTime enterOpenTime,
             Contest.RankingPolicy rankingPolicy, Boolean freezeBoard, String allowedIpRule,
-            String status, Integer problemCount, Boolean joined, Long createdByUserId
+            String status, Integer problemCount, Boolean joined, Boolean canEnter, Long createdByUserId
     ) {}
 
     public record ContestDetailResponse(
-            Long id, String title, String contestContent, LocalDateTime startTime, LocalDateTime endTime,
-            Contest.RankingPolicy rankingPolicy, Boolean freezeBoard, String allowedIpRule,
-            String status, Integer participantCount, Long createdByUserId, List<ContestProblemResponse> problems
+            Long id,
+            String title,
+            String contestContent,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            LocalDateTime enterOpenTime,
+            Contest.RankingPolicy rankingPolicy,
+            Boolean freezeBoard,
+            String allowedIpRule,
+            String status,
+            Integer participantCount,
+            Long createdByUserId,
+            Boolean joined,
+            Boolean problemVisible,
+            Boolean canEnter,
+            List<ContestProblemResponse> problems
     ) {}
 
-    private String normalizeIpRule(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
+    public record ContestSubmissionResponse(
+            Long id,
+            Long userId,
+            String nickname,
+            Long problemId,
+            String judgeStatus,
+            String language,
+            Integer runtimeMs,
+            Integer memoryKb,
+            LocalDateTime submitTime
+    ) {}
+
+    public record ContestRankRowResponse(
+            Long userId,
+            String nickname,
+            Integer solved,
+            Integer penalty,
+            Integer submitCount,
+            List<String> problemStates,
+            Integer rank
+    ) {
+        public ContestRankRowResponse(Long userId, String nickname, Integer solved, Integer penalty,
+                                      Integer submitCount, List<String> problemStates) {
+            this(userId, nickname, solved, penalty, submitCount, problemStates, 0);
         }
-        List<String> parts = List.of(raw.split("[,\\n]")).stream()
-                .map(String::trim)
-                .filter(item -> !item.isBlank())
-                .distinct()
-                .toList();
-        return parts.isEmpty() ? null : String.join(",", parts);
     }
 
-    private String normalizeAllowedIpRuleByRanking(String raw, Contest.RankingPolicy rankingPolicy) {
-        if (rankingPolicy != Contest.RankingPolicy.FORMAL) {
-            return null;
-        }
-        return normalizeIpRule(raw);
-    }
-
-    private String normalizeContent(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String text = raw.trim();
-        return text.isBlank() ? null : text;
-    }
-
-    private boolean ipAllowedByRule(String ip, String rule) {
-        if (rule == null || rule.isBlank()) {
-            return true;
-        }
-        if (ip == null || ip.isBlank()) {
-            return false;
-        }
-        List<String> parts = List.of(rule.split(",")).stream()
-                .map(String::trim)
-                .filter(item -> !item.isBlank())
-                .toList();
-        return parts.stream().anyMatch(ip::contains);
-    }
-
-    private String resolveIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return Optional.ofNullable(request.getRemoteAddr()).orElse("");
-    }
-
-    private void saveContestCheatLog(OjUser user, String behaviorType, String detailInfo) {
-        AntiCheatLog log = new AntiCheatLog();
-        log.setUser(user);
-        log.setBehaviorType(behaviorType);
-        log.setDetailInfo(detailInfo);
-        log.setOccurredTime(LocalDateTime.now());
-        antiCheatLogRepository.save(log);
-    }
+    public record ContestArenaResponse(
+            Long id,
+            String title,
+            String contestContent,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            String status,
+            List<ContestProblemResponse> problems,
+            List<ContestSubmissionResponse> submissions,
+            List<ContestRankRowResponse> leaderboard
+    ) {}
 }

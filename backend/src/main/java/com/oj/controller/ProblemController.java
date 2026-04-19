@@ -13,9 +13,11 @@ import com.oj.repository.ProblemRepository;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,12 +57,13 @@ public class ProblemController {
     @GetMapping
     public ApiResponse<List<Problem>> list(@RequestParam(required = false) String keyword, @RequestParam(required = false) Long viewerUserId) {
         OjUser viewer = Optional.ofNullable(viewerUserId).flatMap(userRepository::findById).orElse(null);
+        Set<Long> contestVisibleProblemIds = buildContestVisibleProblemIds(viewer);
         List<Problem> problems = Optional.ofNullable(keyword)
                 .filter(value -> !value.isBlank())
                 .map(problemRepository::findByTitleContainingIgnoreCase)
                 .orElseGet(problemRepository::findAll)
                 .stream()
-                .filter(problem -> canViewProblem(problem, viewer, null))
+                .filter(problem -> canViewProblem(problem, viewer, null, contestVisibleProblemIds))
                 .toList();
         return ApiResponse.ok(problems);
     }
@@ -73,7 +76,7 @@ public class ProblemController {
     ) {
         OjUser viewer = Optional.ofNullable(viewerUserId).flatMap(userRepository::findById).orElse(null);
         return problemRepository.findById(id)
-                .filter(problem -> canViewProblem(problem, viewer, contestId))
+                .filter(problem -> canViewProblem(problem, viewer, contestId, buildContestVisibleProblemIds(viewer)))
                 .map(ApiResponse::ok)
                 .orElseGet(() -> ApiResponse.fail("题目不存在或无查看权限"));
     }
@@ -158,7 +161,7 @@ public class ProblemController {
         return ApiResponse.ok(problemRepository.findAll());
     }
 
-    private boolean canViewProblem(Problem problem, OjUser viewer, Long contestId) {
+    private boolean canViewProblem(Problem problem, OjUser viewer, Long contestId, Set<Long> contestVisibleProblemIds) {
         if (viewer != null && (OjUser.Role.ADMIN.name().equals(viewer.getRole()) || OjUser.Role.TEACHER.name().equals(viewer.getRole()))) {
             return true;
         }
@@ -177,9 +180,30 @@ public class ProblemController {
         if (contestId != null && isContestRunningAndAuthorized(contestId, problem.getId(), viewer.getId(), now)) {
             return true;
         }
+        return contestVisibleProblemIds.contains(problem.getId());
+    }
 
-        return contestProblemRepository.findByIdProblemId(problem.getId()).stream().anyMatch(cp ->
-                isContestRunningAndAuthorized(cp.getId().getContestId(), problem.getId(), viewer.getId(), now));
+    private Set<Long> buildContestVisibleProblemIds(OjUser viewer) {
+        if (viewer == null || OjUser.Role.ADMIN.name().equals(viewer.getRole()) || OjUser.Role.TEACHER.name().equals(viewer.getRole())) {
+            return Set.of();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> joinedContestIds = contestParticipantRepository.findByIdUserId(viewer.getId()).stream()
+                .map(item -> item.getId().getContestId())
+                .toList();
+        if (joinedContestIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> runningContestIds = contestRepository.findAllById(joinedContestIds).stream()
+                .filter(contest -> !now.isBefore(contest.getStartTime()) && !now.isAfter(contest.getEndTime()))
+                .map(Contest::getId)
+                .collect(Collectors.toSet());
+        if (runningContestIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(contestProblemRepository.findByIdContestIdIn(runningContestIds.stream().toList()).stream()
+                .map(item -> item.getId().getProblemId())
+                .toList());
     }
 
     private boolean isContestRunningAndAuthorized(Long contestId, Long problemId, Long viewerId, LocalDateTime now) {

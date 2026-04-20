@@ -5,6 +5,7 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', component: () => import('@/views/HomeView.vue') },
+    { path: '/profile', component: () => import('@/views/UserCenterView.vue') },
     { path: '/problems', component: () => import('@/views/ProblemsView.vue') },
     { path: '/problems/:id', component: () => import('@/views/ProblemDetailView.vue') },
     { path: '/problems/:id/submit', component: () => import('@/views/SubmitView.vue') },

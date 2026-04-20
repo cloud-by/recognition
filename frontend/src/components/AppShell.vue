@@ -17,6 +17,7 @@ const allMenus = [
   { name: '班级管理', path: '/classes/manage', icon: '🏫', teacherOnly: true },
   { name: '管理端', path: '/admin', icon: '⚙', adminOnly: true },
   { name: '上传题目', path: '/admin/problems/create', icon: '✚', adminOnly: true },
+  { name: '用户中心', path: '/profile', icon: '👤' },
 ]
 const openTagDialog = ref(false)
 

@@ -12,6 +12,7 @@ const quickEntries = computed(() => {
     { title: '题目检索', subtitle: '筛选题目并开始练习', to: '/problems', icon: '🧩', accent: 'blue' },
     { title: '提交记录', subtitle: '查看评测状态和结果', to: '/submissions', icon: '📈', accent: 'green' },
     { title: '比赛大厅', subtitle: '报名并进入比赛', to: '/contests', icon: '🏁', accent: 'orange' },
+    { title: '用户中心', subtitle: '查看个人信息与历史记录', to: '/profile', icon: '👤', accent: 'teal' },
   ]
 
   if (['ADMIN', 'TEACHER'].includes(user?.role)) {

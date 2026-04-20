@@ -41,3 +41,17 @@ export async function apiDelete(path) {
   if (!response.ok) throw new Error(`DELETE ${path} failed: ${response.status}`)
   return response.json()
 }
+
+export async function apiPatch(path, body) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    throw new Error(`PATCH ${path} failed: ${response.status}`)
+  }
+
+  return response.json()
+}

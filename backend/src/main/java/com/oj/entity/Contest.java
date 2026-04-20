@@ -44,6 +44,12 @@ public class Contest {
     @Column(name = "allowed_ip_rule", length = 500)
     private String allowedIpRule;
 
+    @Column(name = "limit_to_class", nullable = false)
+    private Boolean limitToClass = false;
+
+    @Column(name = "teaching_class_id")
+    private Long teachingClassId;
+
     @Column(name = "created_by_user_id", nullable = false)
     private Long createdByUserId;
 
@@ -80,6 +86,10 @@ public class Contest {
     public void setFreezeBoard(Boolean freezeBoard) { this.freezeBoard = freezeBoard; }
     public String getAllowedIpRule() { return allowedIpRule; }
     public void setAllowedIpRule(String allowedIpRule) { this.allowedIpRule = allowedIpRule; }
+    public Boolean getLimitToClass() { return limitToClass; }
+    public void setLimitToClass(Boolean limitToClass) { this.limitToClass = limitToClass; }
+    public Long getTeachingClassId() { return teachingClassId; }
+    public void setTeachingClassId(Long teachingClassId) { this.teachingClassId = teachingClassId; }
     public Long getCreatedByUserId() { return createdByUserId; }
     public void setCreatedByUserId(Long createdByUserId) { this.createdByUserId = createdByUserId; }
 }

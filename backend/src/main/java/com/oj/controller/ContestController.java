@@ -9,6 +9,7 @@ import com.oj.entity.ContestProblem;
 import com.oj.entity.OjUser;
 import com.oj.entity.Problem;
 import com.oj.entity.Submission;
+import com.oj.entity.TeachingClass;
 import com.oj.repository.AntiCheatLogRepository;
 import com.oj.repository.ContestParticipantRepository;
 import com.oj.repository.ContestProblemRepository;
@@ -16,6 +17,7 @@ import com.oj.repository.ContestRepository;
 import com.oj.repository.OjUserRepository;
 import com.oj.repository.ProblemRepository;
 import com.oj.repository.SubmissionRepository;
+import com.oj.repository.TeachingClassRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -52,6 +54,7 @@ public class ContestController {
     private final ContestParticipantRepository contestParticipantRepository;
     private final AntiCheatLogRepository antiCheatLogRepository;
     private final SubmissionRepository submissionRepository;
+    private final TeachingClassRepository teachingClassRepository;
 
     public ContestController(
             ContestRepository contestRepository,
@@ -60,7 +63,8 @@ public class ContestController {
             ContestProblemRepository contestProblemRepository,
             ContestParticipantRepository contestParticipantRepository,
             AntiCheatLogRepository antiCheatLogRepository,
-            SubmissionRepository submissionRepository
+            SubmissionRepository submissionRepository,
+            TeachingClassRepository teachingClassRepository
     ) {
         this.contestRepository = contestRepository;
         this.problemRepository = problemRepository;
@@ -69,6 +73,7 @@ public class ContestController {
         this.contestParticipantRepository = contestParticipantRepository;
         this.antiCheatLogRepository = antiCheatLogRepository;
         this.submissionRepository = submissionRepository;
+        this.teachingClassRepository = teachingClassRepository;
     }
 
     @GetMapping
@@ -77,6 +82,12 @@ public class ContestController {
         List<Contest> contests = viewer != null && OjUser.Role.TEACHER.name().equals(viewer.getRole())
                 ? contestRepository.findByCreatedByUserIdOrderByStartTimeDesc(viewerUserId)
                 : contestRepository.findAllByOrderByStartTimeDesc();
+        if (viewer != null && OjUser.Role.STUDENT.name().equals(viewer.getRole())) {
+            contests = contests.stream()
+                    .filter(item -> !Boolean.TRUE.equals(item.getLimitToClass())
+                            || (viewer.getTeachingClassId() != null && viewer.getTeachingClassId().equals(item.getTeachingClassId())))
+                    .toList();
+        }
 
         Set<Long> contestIds = contests.stream().map(Contest::getId).collect(Collectors.toSet());
         Map<Long, Long> problemCountMap = contestProblemRepository.findAll().stream()
@@ -103,6 +114,8 @@ public class ContestController {
                     contest.getRankingPolicy(),
                     contest.getFreezeBoard(),
                     contest.getAllowedIpRule(),
+                    contest.getLimitToClass(),
+                    contest.getTeachingClassId(),
                     getContestStatus(contest, now),
                     problemCountMap.getOrDefault(contest.getId(), 0L).intValue(),
                     joinedContestIds.contains(contest.getId()),
@@ -138,6 +151,8 @@ public class ContestController {
                 contest.getRankingPolicy(),
                 contest.getFreezeBoard(),
                 contest.getAllowedIpRule(),
+                contest.getLimitToClass(),
+                contest.getTeachingClassId(),
                 getContestStatus(contest, now),
                 contestParticipantRepository.findByIdContestId(id).size(),
                 contest.getCreatedByUserId(),
@@ -235,6 +250,10 @@ public class ContestController {
         contest.setRankingPolicy(request.rankingPolicy() == null ? Contest.RankingPolicy.FORMAL : request.rankingPolicy());
         contest.setFreezeBoard(Boolean.TRUE.equals(request.freezeBoard()));
         contest.setAllowedIpRule(normalizeAllowedIpRuleByRanking(request.allowedIpRule(), contest.getRankingPolicy()));
+        ApiResponse<?> classValidation = applyClassLimit(contest, request.limitToClass(), request.teachingClassId(), creator);
+        if (!classValidation.success()) {
+            return classValidation;
+        }
         contest.setCreatedByUserId(request.creatorUserId());
         Contest saved = contestRepository.save(contest);
 
@@ -280,6 +299,10 @@ public class ContestController {
         contest.setRankingPolicy(request.rankingPolicy() == null ? Contest.RankingPolicy.FORMAL : request.rankingPolicy());
         contest.setFreezeBoard(Boolean.TRUE.equals(request.freezeBoard()));
         contest.setAllowedIpRule(normalizeAllowedIpRuleByRanking(request.allowedIpRule(), contest.getRankingPolicy()));
+        ApiResponse<?> classValidation = applyClassLimit(contest, request.limitToClass(), request.teachingClassId(), operator);
+        if (!classValidation.success()) {
+            return classValidation;
+        }
         contestRepository.save(contest);
 
         List<ContestProblem> existing = contestProblemRepository.findByIdContestIdOrderBySortOrderAsc(id);
@@ -306,6 +329,11 @@ public class ContestController {
         OjUser user = ojUserRepository.findById(request.userId()).orElse(null);
         if (user == null) {
             return ApiResponse.fail("用户不存在");
+        }
+        if (Boolean.TRUE.equals(contest.getLimitToClass())) {
+            if (user.getTeachingClassId() == null || !user.getTeachingClassId().equals(contest.getTeachingClassId())) {
+                return ApiResponse.fail("该活动限定班级参与，你不在指定班级中");
+            }
         }
         if (contestParticipantRepository.existsByIdContestIdAndIdUserId(id, request.userId())) {
             return ApiResponse.fail("你已报名该比赛");
@@ -473,6 +501,27 @@ public class ContestController {
         return "RUNNING";
     }
 
+    private ApiResponse<?> applyClassLimit(Contest contest, Boolean limitToClass, Long teachingClassId, OjUser operator) {
+        boolean enabled = Boolean.TRUE.equals(limitToClass);
+        contest.setLimitToClass(enabled);
+        if (!enabled) {
+            contest.setTeachingClassId(null);
+            return ApiResponse.ok("ok");
+        }
+        if (teachingClassId == null) {
+            return ApiResponse.fail("已勾选限定班级，请选择班级");
+        }
+        TeachingClass teachingClass = teachingClassRepository.findById(teachingClassId).orElse(null);
+        if (teachingClass == null) {
+            return ApiResponse.fail("选择的班级不存在");
+        }
+        if (OjUser.Role.TEACHER.name().equals(operator.getRole()) && !teachingClass.getTeacherId().equals(operator.getId())) {
+            return ApiResponse.fail("老师仅可选择自己创建的班级");
+        }
+        contest.setTeachingClassId(teachingClassId);
+        return ApiResponse.ok("ok");
+    }
+
     private String normalizeContent(String content) {
         if (content == null) return null;
         String trimmed = content.trim();
@@ -531,6 +580,8 @@ public class ContestController {
             Contest.RankingPolicy rankingPolicy,
             Boolean freezeBoard,
             String allowedIpRule,
+            Boolean limitToClass,
+            Long teachingClassId,
             @NotEmpty List<Long> problemIds
     ) {}
 
@@ -543,6 +594,8 @@ public class ContestController {
             Contest.RankingPolicy rankingPolicy,
             Boolean freezeBoard,
             String allowedIpRule,
+            Boolean limitToClass,
+            Long teachingClassId,
             @NotEmpty List<Long> problemIds
     ) {}
 
@@ -555,6 +608,7 @@ public class ContestController {
             Long id, String title, String contestContent, LocalDateTime startTime, LocalDateTime endTime,
             LocalDateTime enterOpenTime,
             Contest.RankingPolicy rankingPolicy, Boolean freezeBoard, String allowedIpRule,
+            Boolean limitToClass, Long teachingClassId,
             String status, Integer problemCount, Boolean joined, Boolean canEnter, Long createdByUserId
     ) {}
 
@@ -568,6 +622,8 @@ public class ContestController {
             Contest.RankingPolicy rankingPolicy,
             Boolean freezeBoard,
             String allowedIpRule,
+            Boolean limitToClass,
+            Long teachingClassId,
             String status,
             Integer participantCount,
             Long createdByUserId,

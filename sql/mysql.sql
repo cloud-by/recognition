@@ -47,6 +47,19 @@ PREPARE stmt_add_last_submit_ip FROM @add_last_submit_ip_sql;
 EXECUTE stmt_add_last_submit_ip;
 DEALLOCATE PREPARE stmt_add_last_submit_ip;
 
+SET @teaching_class_id_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oj_user' AND COLUMN_NAME = 'teaching_class_id'
+);
+SET @add_teaching_class_id_sql := IF(
+    @teaching_class_id_exists = 0,
+    "ALTER TABLE oj_user ADD COLUMN teaching_class_id BIGINT UNSIGNED NULL COMMENT '所属班级ID' AFTER last_submit_ip",
+    'SELECT 1'
+);
+PREPARE stmt_add_teaching_class_id FROM @add_teaching_class_id_sql;
+EXECUTE stmt_add_teaching_class_id;
+DEALLOCATE PREPARE stmt_add_teaching_class_id;
+
 UPDATE oj_user SET role = 'STUDENT' WHERE role IS NULL OR role NOT IN ('STUDENT','TEACHER','ADMIN');
 
 
@@ -193,6 +206,8 @@ CREATE TABLE IF NOT EXISTS contest (
     ranking_policy ENUM('FORMAL','CLASSROOM') NOT NULL DEFAULT 'FORMAL' COMMENT '排名策略',
     freeze_board TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否封榜：0否，1是',
     allowed_ip_rule VARCHAR(500) DEFAULT NULL COMMENT '正式比赛允许IP规则，多个关键字可用逗号分隔',
+    limit_to_class TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否限定班级参与',
+    teaching_class_id BIGINT UNSIGNED NULL COMMENT '限定班级ID',
     created_by_user_id BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '创建者用户ID',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -282,6 +297,32 @@ SET @add_allowed_ip_rule_sql := IF(
 PREPARE stmt_add_allowed_ip_rule FROM @add_allowed_ip_rule_sql;
 EXECUTE stmt_add_allowed_ip_rule;
 DEALLOCATE PREPARE stmt_add_allowed_ip_rule;
+
+SET @limit_to_class_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contest' AND COLUMN_NAME = 'limit_to_class'
+);
+SET @add_limit_to_class_sql := IF(
+    @limit_to_class_exists = 0,
+    "ALTER TABLE contest ADD COLUMN limit_to_class TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否限定班级参与' AFTER allowed_ip_rule",
+    'SELECT 1'
+);
+PREPARE stmt_add_limit_to_class FROM @add_limit_to_class_sql;
+EXECUTE stmt_add_limit_to_class;
+DEALLOCATE PREPARE stmt_add_limit_to_class;
+
+SET @contest_teaching_class_id_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contest' AND COLUMN_NAME = 'teaching_class_id'
+);
+SET @add_contest_teaching_class_id_sql := IF(
+    @contest_teaching_class_id_exists = 0,
+    "ALTER TABLE contest ADD COLUMN teaching_class_id BIGINT UNSIGNED NULL COMMENT '限定班级ID' AFTER limit_to_class",
+    'SELECT 1'
+);
+PREPARE stmt_add_contest_teaching_class_id FROM @add_contest_teaching_class_id_sql;
+EXECUTE stmt_add_contest_teaching_class_id;
+DEALLOCATE PREPARE stmt_add_contest_teaching_class_id;
 
 
 -- =========================

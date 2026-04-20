@@ -35,6 +35,9 @@ public class OjUser {
     @Column(name = "last_submit_ip", length = 64)
     private String lastSubmitIp;
 
+    @Column(name = "teaching_class_id")
+    private Long teachingClassId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -64,6 +67,8 @@ public class OjUser {
     public void setRole(String role) { this.role = role; }
     public String getLastSubmitIp() { return lastSubmitIp; }
     public void setLastSubmitIp(String lastSubmitIp) { this.lastSubmitIp = lastSubmitIp; }
+    public Long getTeachingClassId() { return teachingClassId; }
+    public void setTeachingClassId(Long teachingClassId) { this.teachingClassId = teachingClassId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

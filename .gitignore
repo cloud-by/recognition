@@ -45,6 +45,7 @@ coverage/
 *.local
 *.tsbuildinfo
 .eslintcache
+.npm-cache/
 *.timestamp-*-*.mjs
 
 # =========================

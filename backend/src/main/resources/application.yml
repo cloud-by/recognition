@@ -27,6 +27,7 @@ spring:
       password: Hhh123456
       database: 0
       timeout: 5000ms
+      client-type: jedis
       lettuce:
         pool:
           max-active: 20

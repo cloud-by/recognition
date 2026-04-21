@@ -1,15 +1,19 @@
 package com.oj.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oj.dto.ApiResponse;
 import com.oj.entity.OjUser;
 import com.oj.repository.OjUserRepository;
+import com.oj.tools.RedisUtil;
+import com.oj.tools.TokenUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
@@ -17,10 +21,21 @@ public class AuthController {
 
     private final OjUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ObjectMapper mapper;
 
-    public AuthController(OjUserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthController(OjUserRepository userRepository, PasswordEncoder passwordEncoder,ObjectMapper mapper) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.mapper=mapper;
+    }
+
+    @GetMapping("/user-info")
+    public ApiResponse<LoginResponse> getUserInfo(HttpServletRequest httpServletRequest){
+        System.out.println("sb");
+        System.out.println(httpServletRequest.getHeader("token"));
+        LoginResponse loginResponse=TokenUtils.getLoginUserDetailsFromToken(httpServletRequest.getHeader("token"));
+        System.out.println(loginResponse);
+        return loginResponse==null?ApiResponse.fail("没有登录信息"):ApiResponse.ok(loginResponse);
     }
 
     @PostMapping("/register")
@@ -39,11 +54,22 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {
-        return userRepository.findByUsername(request.username())
+    public ApiResponse<String> login(@RequestBody LoginRequest request) {
+        //获取登录用户信息
+        LoginResponse loginResponse=userRepository.findByUsername(request.username())
                 .filter(user -> passwordEncoder.matches(request.password(), user.getPasswordHash()))
-                .map(user -> ApiResponse.ok(new LoginResponse(user.getId(), user.getUsername(), user.getNickname(), user.getRole())))
-                .orElseGet(() -> ApiResponse.fail("用户名或密码错误"));
+                .map(user->new LoginResponse(user.getId(), user.getUsername(), user.getNickname(), user.getRole()))
+                .orElseGet(null);
+        if(loginResponse==null){
+            return ApiResponse.fail("账号或密码错误");
+        }
+        String token=UUID.randomUUID().toString();
+        try {
+            RedisUtil.set("login:token:"+token, mapper.writeValueAsString(loginResponse), 7, TimeUnit.DAYS);
+        }catch (Exception e){
+            return ApiResponse.fail("账号或密码错误");
+        }
+        return ApiResponse.ok(token);
     }
 
     private String normalizeRole(String role) {

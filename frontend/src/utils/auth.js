@@ -1,7 +1,8 @@
 const AUTH_KEY = 'oj_auth_user'
 const AUTH_EVENT = 'oj-auth-changed'
+const TOKEN = 'oj_token'
 
-function notifyAuthChange() {
+export function notifyAuthChange() {
   window.dispatchEvent(new CustomEvent(AUTH_EVENT))
 }
 
@@ -21,6 +22,16 @@ export function setAuthUser(user) {
     return
   }
   localStorage.setItem(AUTH_KEY, JSON.stringify(user))
+  notifyAuthChange()
+}
+
+export function setToken(token) {
+  if (!token) {
+    localStorage.removeItem(TOKEN)
+    notifyAuthChange()
+    return
+  }
+  localStorage.setItem(TOKEN, token)
   notifyAuthChange()
 }
 

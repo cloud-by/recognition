@@ -1,8 +1,8 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiPost } from '@/api/http'
-import { setAuthUser } from '@/utils/auth'
+import { apiGet, apiPost } from '@/api/http'
+import { setAuthUser, setToken } from '@/utils/auth'
 
 const router = useRouter()
 const form = reactive({
@@ -14,7 +14,6 @@ const form = reactive({
 const message = ref('')
 const error = ref('')
 const loading = ref(false)
-
 async function onSubmit() {
   loading.value = true
   message.value = ''
@@ -25,13 +24,14 @@ async function onSubmit() {
       password: form.password,
     })
 
-    if (!resp.success || !resp.data?.id) {
+    if (!resp.success || !resp.data) {
       error.value = resp.message || '登录失败'
       return
     }
-
-    setAuthUser(resp.data)
-    message.value = `登录成功，欢迎你：${resp.data.nickname || resp.data.username}`
+    setToken(resp.data)
+    const resp2=await apiGet('/auth/user-info')
+    setAuthUser(resp2.data)
+    message.value = `登录成功，欢迎你：${resp2.data.nickname || resp2.data.username}`
     setTimeout(() => router.push('/problems'), 600)
   } catch (err) {
     error.value = err.message || '登录失败，请稍后再试'

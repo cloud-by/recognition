@@ -15,13 +15,12 @@ public class RedisUtil {
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    // 静态实例，供静态方法使用
-    private static RedisUtil instance;  // 改名避免混淆
+    private static RedisUtil instance;
 
-    @PostConstruct  // 添加这个方法！Spring 会在依赖注入完成后自动调用
+    @PostConstruct
     public void init() {
         instance = this;
-        System.out.println("RedisUtil 初始化成功");  // 可选，用于确认
+        System.out.println("RedisUtil 初始化成功");
     }
 
     private static RedisUtil getInstance() {

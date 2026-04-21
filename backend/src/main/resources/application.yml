@@ -22,8 +22,16 @@ spring:
 
   data:
     redis:
-      host: localhost
+      host: 139.9.114.118
       port: 6379
+      password: Hhh123456
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
 
 judge0:
   base-url: http://139.9.114.118:2358

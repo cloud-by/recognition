@@ -6,6 +6,10 @@ export function fetchClasses(viewerUserId, keyword = '') {
   return apiGet(`/classes?${query.toString()}`)
 }
 
+export function fetchTeacherClasses(teacherId, keyword = '') {
+  return fetchClasses(teacherId, keyword)
+}
+
 export function createClass(payload) {
   return apiPost('/classes', payload)
 }
